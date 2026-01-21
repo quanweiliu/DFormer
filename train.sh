@@ -15,7 +15,7 @@ MASTER_ADDR=${MASTER_ADDR:-"127.0.0.1"}
 # 计算机上可见的 GPU 列表
 export CUDA_VISIBLE_DEVICES="0,1"
 # 开启这个，PyTorch 在使用 torch.compile() / Dynamo 编译时会打印更多调试信息。
-export TORCHDYNAMO_VERBOSE=1    
+export TORCHDYNAMO_VERBOSE=1
 
 PYTHONPATH="$(dirname $0)/..":"$(dirname $0)":$PYTHONPATH \
     torchrun \
@@ -53,24 +53,6 @@ PYTHONPATH="$(dirname $0)/..":"$(dirname $0)":$PYTHONPATH \
 # local_configs.ISPRS_Potsdam_S
 # local_configs.ISPRS_Potsdam_B
 # local_configs.ISPRS_Potsdam_L
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 

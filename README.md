@@ -4,6 +4,10 @@ In this repository, I apply the DFormer in my study area (Remote sensing). I fou
 How to change the dataset, 1\) compare the local_configs/template/DFormer_Large.py and ISPRS_Potsdam_L you will know how to configure. And  2\) compare utils/dataloader/RGBXDataset and utils/dataloader/TIFDataset you will know how to use your own datasets.
 
 
+The difference of this version compared to orgianl version is estimation metric. The concret details refer to 2.File description Metric.
+
+
+
 ## 1.Get Start
 Install: Refer to [DFormer](https://github.com/quanweiliu/DFormer)
 
@@ -45,7 +49,7 @@ TIFDataset: load TIF datasets
 2. 配置 infer.sh 文件
     - 支持单机单卡或者单机多卡，但是默认为单机多卡，只需要确定 GPU 数量即可
     - 以 DFormerv2_B 为例子，选择 --config=local_configs.NYUDepthv2.DFormerv2_B
-    - 选择 --continue_fpath=/home/icclab/Documents/lqw/Multimodal_Segmentation/DFormer/checkpoints/DFormerv2_Base_NYU.pth
+    - 配置权重 --continue_fpath=/home/icclab/Documents/lqw/Multimodal_Segmentation/DFormer/checkpoints/DFormerv2_Base_NYU.pth
 
 3. 在 utils/infer.py 
     - 打开 from utils.dataloader.RGBXDataset import RGBXDataset
@@ -64,12 +68,12 @@ TIFDataset: load TIF datasets
 1. 配置 train.sh 文件
     - 支持单机单卡或者单机多卡，但是默认为单机多卡，只需要确定 GPU 数量即可
     - 选择 --config=local_configs.ISPRS_Vaihingen_S
-    - 配置 ISPRS_Vaihingen_S
+    - 配置 ISPRS_Vaihingen_S, 
+        - 选择 train 和 val 数据集和 train 和 val 样本数量
+        - **background 255**, 只有我这个需要改，对于RGB-X数据集，他的背景就是 255 不需要改。
 
-2. 在 utils/train.py 
+2. 在 utils/train.py
     - 打开 from utils.dataloader.TIFDataset import RGBXDataset
-
-3. More detaills should be filled in. TODO
 
 
 
@@ -77,7 +81,10 @@ TIFDataset: load TIF datasets
 1. 配置 infer.sh 文件
     - 支持单机单卡或者单机多卡，但是默认为单机多卡，只需要确定 GPU 数量即可
     - 以 ISPRS_Vaihingen_S 为例子，选择 --config=local_configs.ISPRS_Vaihingen_S
-    - 选择 --continue_fpath=/home/icclab/Documents/lqw/Multimodal_Segmentation/DFormer/results/Vaihingen_DFormerv2_S_20251023-140912/epoch-97_miou_61.81.pth
+    - 配置 ISPRS_Vaihingen_S, 
+        - 选择 test 数据集和 test 样本数量
+        - **background 5**
+    - 配置权重 --continue_fpath=/home/icclab/Documents/lqw/Multimodal_Segmentation/DFormer/results/Vaihingen_DFormerv2_S_20251023-140912/epoch-97_miou_61.81.pth
 
 2. 在 utils/infer.py 
     - 打开 from utils.dataloader.TIFDataset import RGBXDataset

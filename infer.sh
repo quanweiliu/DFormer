@@ -15,8 +15,8 @@ PYTHONPATH="$(dirname $0)/..":$PYTHONPATH \
     --nproc_per_node=$GPUS \
     --master_port=$PORT \
     utils/infer.py \
-    --config=local_configs.ISPRS_Potsdam_B \
-    --continue_fpath=/home/icclab/Documents/lqw/Multimodal_Segmentation/DFormer/results/Potsdam_DFormerv2_B_20251024-001638/epoch-30_miou_74.69.pth \
+    --config=local_configs.ISPRS_Vaihingen_S \
+    --continue_fpath=/home/icclab/Documents/lqw/Multimodal_Segmentation/DFormer/results/Vaihingen_DFormerv2_S_20251023-140912/epoch-97_miou_61.81.pth \
     --save_path "" \
     --gpus=$GPUS
 

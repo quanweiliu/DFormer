@@ -34,7 +34,8 @@ def random_crop_pad_to_shape(img, crop_pos, crop_size, pad_label_value):
     crop_size = get_2dshape(crop_size)
     crop_h, crop_w = crop_size
 
-    img_crop = img[start_crop_h : start_crop_h + crop_h, start_crop_w : start_crop_w + crop_w, ...]
+    img_crop = img[start_crop_h : start_crop_h + crop_h, 
+                   start_crop_w : start_crop_w + crop_w, ...]
 
     img_, margin = pad_image_to_shape(img_crop, crop_size, cv2.BORDER_CONSTANT, pad_label_value)
 

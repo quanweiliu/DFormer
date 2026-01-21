@@ -23,12 +23,12 @@ def rgb_to_2D_label(label):
     Building = [255, 0, 0] # Clutter 
 
     label_seg = np.zeros(label.shape,dtype=np.uint8)
-    label_seg [np.all(label==ImSurf,axis=-1)] = 0
-    label_seg [np.all(label==Building,axis=-1)] = 1
-    label_seg [np.all(label==LowVeg,axis=-1)] = 2
-    label_seg [np.all(label==Tree,axis=-1)] = 3
-    label_seg [np.all(label==Car,axis=-1)] = 4
-    label_seg [np.all(label==Clutter,axis=-1)] = 5
+    label_seg[np.all(label==ImSurf,axis=-1)] = 0
+    label_seg[np.all(label==Building,axis=-1)] = 1
+    label_seg[np.all(label==LowVeg,axis=-1)] = 2
+    label_seg[np.all(label==Tree,axis=-1)] = 3
+    label_seg[np.all(label==Car,axis=-1)] = 4
+    label_seg[np.all(label==Clutter,axis=-1)] = 5
 
     # label_seg = label_seg[:,:,0]  #Just take the first channel, no need for all 3 channels
     
@@ -166,7 +166,7 @@ class RGBXDataset(data.Dataset):
         self._file_length = file_length
         self.preprocess = preprocess
         self.dataset_name = setting["dataset_name"]
-        self.x_modal = setting.get("x_modal", ["d"])
+        self.x_modal = setting.get("x_modal", ["d"])   # x_modal 有值，就返回 x_modal，否则返回 ['d']
         self.backbone = setting["backbone"]
 
     def __len__(self):
@@ -188,7 +188,7 @@ class RGBXDataset(data.Dataset):
             self._x_format,
             self._gt_path,
             self._gt_format,
-            self.x_modal,
+            self.x_modal,      # RGB 的 x modal
             item_name,
         )
         # if self.dataset_name == "SUNRGBD" and self.backbone.startswith("DFormerv2"):
@@ -198,10 +198,11 @@ class RGBXDataset(data.Dataset):
         # rasterio.open(filepath)
         rgb = rasterio.open(path_dict["rgb_path"]).read().transpose(1, 2, 0)
         x = rasterio.open(path_dict["d_path"]).read()
-        x = np.tile(x, (3, 1, 1)).transpose(1, 2, 0)
+        x = np.tile(x, (3, 1, 1)).transpose(1, 2, 0)   #通过复制通道数，变成3通道
         gt = rasterio.open(path_dict["gt_path"]).read().transpose(1, 2, 0)
         gt = rgb_to_2D_label(gt)[:, :, 0]
-        # print("gt", gt.shape)
+        # print("rgb", rgb.shape)
+        # print("gt", gt.shape, gt.min(), gt.max(), '---')
 
         # gt = self._open_image(path_dict["gt_path"], cv2.IMREAD_GRAYSCALE, dtype=np.uint8)
         # if self._transform_gt:

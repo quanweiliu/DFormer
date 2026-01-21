@@ -251,23 +251,23 @@ with Engine(custom_parser=parser) as engine:
     optimizer.zero_grad()
 
     logger.info("begin trainning:")
-    data_setting = {
-        "rgb_root": config.rgb_root_folder,
-        "rgb_format": config.rgb_format,
-        "gt_root": config.gt_root_folder,
-        "gt_format": config.gt_format,
-        "transform_gt": config.gt_transform,
-        "x_root": config.x_root_folder,
-        "x_format": config.x_format,
-        "x_single_channel": config.x_is_single_channel,
-        "class_names": config.class_names,
-        "train_source": config.train_source,
-        "eval_source": config.eval_source,
-    }
+    # data_setting = {
+    #     "rgb_root": config.rgb_root_folder,
+    #     "rgb_format": config.rgb_format,
+    #     "gt_root": config.gt_root_folder,
+    #     "gt_format": config.gt_format,
+    #     "transform_gt": config.gt_transform,
+    #     "x_root": config.x_root_folder,
+    #     "x_format": config.x_format,
+    #     "x_single_channel": config.x_is_single_channel,
+    #     "class_names": config.class_names,
+    #     "train_source": config.train_source,
+    #     "eval_source": config.eval_source,
+    # }
     # val_pre = ValPre()
     # val_dataset = RGBXDataset(data_setting, 'val', val_pre)
     # test_loader, test_sampler = get_test_loader(engine, RGBXDataset,config)
-    all_dev = [0]
+    # all_dev = [0]
     # segmentor = SegEvaluator(val_dataset, config.num_classes, config.norm_mean,
     #                                 config.norm_std, None,
     #                                 config.eval_scale_array, config.eval_flip,
@@ -310,12 +310,13 @@ with Engine(custom_parser=parser) as engine:
             imgs = minibatch["data"]
             gts = minibatch["label"]
             modal_xs = minibatch["modal_x"]
+            # print(gts.shape, gts.max(), gts.min())
 
             imgs = imgs.cuda(non_blocking=True)
             gts = gts.cuda(non_blocking=True)
             modal_xs = modal_xs.cuda(non_blocking=True)
-            # 8, 3, 480, 640 / 8, 3, 480, 640 / 8, 480, 640
             # print("imgs", imgs.shape, "modal_xs", modal_xs.shape, "gts", gts.shape)
+            # 8, 3, 480, 640 / 8, 3, 480, 640 / 8, 480, 640
 
             if args.amp:
                 with torch.autocast(device_type="cuda", dtype=torch.float16):
@@ -439,11 +440,17 @@ with Engine(custom_parser=parser) as engine:
                             )
                     if engine.local_rank == 0:
                         metric = all_metrics[0]
-                        for other_metric in all_metrics[1:]:
-                            metric.update_hist(other_metric.hist)
-                        ious, miou = metric.compute_iou()
-                        acc, macc = metric.compute_pixel_acc()
-                        f1, mf1 = metric.compute_f1()
+
+
+                        score, class_iou = metric.get_scores()
+                        miou = score["mIoU  \t\t"]
+                        # for other_metric in all_metrics[1:]:
+                        #     metric.update_hist(other_metric.hist)
+                        # ious, miou = metric.compute_iou()
+                        # acc, macc = metric.compute_pixel_acc()
+                        # f1, mf1 = metric.compute_f1()
+
+                        
                         if miou > best_miou:
                             best_miou = miou
                             engine.save_and_link_checkpoint(

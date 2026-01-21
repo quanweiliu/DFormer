@@ -214,6 +214,7 @@ class GeoPriorGen(nn.Module):
 
 
 class Decomposed_GSA(nn.Module):
+    # GSA geometry self-attention
     def __init__(self, embed_dim, num_heads, value_factor=1):
         super().__init__()
         self.factor = value_factor
@@ -278,6 +279,7 @@ class Decomposed_GSA(nn.Module):
 
 
 class Full_GSA(nn.Module):
+    # GSA geometry self-attention
     def __init__(self, embed_dim, num_heads, value_factor=1):
         super().__init__()
         self.factor = value_factor
@@ -417,6 +419,8 @@ class RGBD_Block(nn.Module):
         b, h, w, d = x.size()
 
         geo_prior = self.Geo((h, w), x_e, split_or_not=split_or_not)
+
+        # 什么是 layer scale？
         if self.layerscale:
             x = x + self.drop_path(self.gamma_1 * self.Attention(self.layer_norm1(x), geo_prior, split_or_not))
             x = x + self.drop_path(self.gamma_2 * self.ffn(self.layer_norm2(x)))
@@ -623,12 +627,18 @@ class dformerv2(nn.Module):
         x = self.patch_embed(x)
         # depth input
         x_e = x_e[:, 0, :, :].unsqueeze(1)
+        # print("x_e", x_e.shape)    # torch.Size([32, 1, 256, 256])
 
         outs = []
-
         for i in range(self.num_layers):
             layer = self.layers[i]
-            x_out, x = layer(x, x_e)
+            x_out, x = layer(x, x_e) 
+            # print(f"x_out layer {i}:", x_out.shape, x.shape)
+            # x_out layer 0: torch.Size([32, 64, 64, 64]) torch.Size([32, 32, 32, 128])
+            # x_out layer 1: torch.Size([32, 32, 32, 128]) torch.Size([32, 16, 16, 256])
+            # x_out layer 2: torch.Size([32, 16, 16, 256]) torch.Size([32, 8, 8, 512])
+            # x_out layer 3: torch.Size([32, 8, 8, 512]) torch.Size([32, 8, 8, 512])
+
             if i in self.out_indices:
                 if i != 0:
                     x_out = self.extra_norms[i - 1](x_out)

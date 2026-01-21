@@ -126,7 +126,7 @@ class EncoderDecoder(nn.Module):
 
         elif cfg.decoder == "ham":
             logger.info("Using Ham Decoder")
-            print(cfg.num_classes)
+            print("train number", cfg.num_classes)
             from .decoders.ham_head import LightHamHead as DecoderHead
 
             # from mmseg.models.decode_heads.ham_head import LightHamHead as DecoderHead
@@ -143,31 +143,47 @@ class EncoderDecoder(nn.Module):
                 self.aux_index = 2
                 self.aux_rate = cfg.aux_rate
                 print("aux rate is set to", str(self.aux_rate))
-                self.aux_head = FCNHead(self.channels[2], cfg.num_classes, norm_layer=norm_layer)
+                self.aux_head = FCNHead(self.channels[2], 
+                                        cfg.num_classes, 
+                                        norm_layer=norm_layer
+                )
 
         elif cfg.decoder == "UPernet":
             logger.info("Using Upernet Decoder")
             from .decoders.UPernet import UPerHead
 
             self.decode_head = UPerHead(
-                in_channels=self.channels, num_classes=cfg.num_classes, norm_layer=norm_layer, channels=512
+                in_channels=self.channels, 
+                num_classes=cfg.num_classes, 
+                norm_layer=norm_layer, 
+                channels=512
             )
             from .decoders.fcnhead import FCNHead
 
             self.aux_index = 2
             self.aux_rate = 0.4
-            self.aux_head = FCNHead(self.channels[2], cfg.num_classes, norm_layer=norm_layer)
+            self.aux_head = FCNHead(self.channels[2], 
+                                    cfg.num_classes, 
+                                    norm_layer=norm_layer
+            )
 
         elif cfg.decoder == "deeplabv3+":
             logger.info("Using Decoder: DeepLabV3+")
             from .decoders.deeplabv3plus import DeepLabV3Plus as Head
 
-            self.decode_head = Head(in_channels=self.channels, num_classes=cfg.num_classes, norm_layer=norm_layer)
+            self.decode_head = Head(in_channels=self.channels, 
+                                    num_classes=cfg.num_classes, 
+                                    norm_layer=norm_layer
+            )
             from .decoders.fcnhead import FCNHead
 
             self.aux_index = 2
             self.aux_rate = 0.4
-            self.aux_head = FCNHead(self.channels[2], cfg.num_classes, norm_layer=norm_layer)
+            self.aux_head = FCNHead(self.channels[2], 
+                                    cfg.num_classes, 
+                                    norm_layer=norm_layer
+            )
+        
         elif cfg.decoder == "nl":
             logger.info("Using Decoder: nl+")
             from .decoders.nl_head import NLHead as Head
@@ -183,14 +199,20 @@ class EncoderDecoder(nn.Module):
 
             self.aux_index = 2
             self.aux_rate = 0.4
-            self.aux_head = FCNHead(self.channels[2], cfg.num_classes, norm_layer=norm_layer)
+            self.aux_head = FCNHead(self.channels[2], 
+                                    cfg.num_classes, 
+                                    norm_layer=norm_layer
+            )
 
         else:
             logger.info("No decoder(FCN-32s)")
             from .decoders.fcnhead import FCNHead
 
             self.decode_head = FCNHead(
-                in_channels=self.channels[-1], kernel_size=3, num_classes=cfg.num_classes, norm_layer=norm_layer
+                in_channels=self.channels[-1], 
+                kernel_size=3, 
+                num_classes=cfg.num_classes, 
+                norm_layer=norm_layer
             )
 
         self.criterion = criterion
@@ -244,6 +266,9 @@ class EncoderDecoder(nn.Module):
             out, aux_fm = self.encode_decode(rgb, modal_x)
         else:
             out = self.encode_decode(rgb, modal_x)
+        
+        # print("target min/max:", out.min().item(), out.max().item())
+        # print("label min/max:", label.long().min().item(), label.long().max().item())
         if label is not None:
             loss = self.criterion(out, label.long())[label.long() != self.cfg.background].mean()
             if self.aux_head:

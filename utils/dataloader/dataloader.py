@@ -43,6 +43,7 @@ class TrainPre(object):
     def __call__(self, rgb, gt, modal_x):
         rgb, gt, modal_x = random_mirror(rgb, gt, modal_x)
         if self.config.train_scale_array is not None:
+            # 多尺度数据增强
             rgb, gt, modal_x, scale = random_scale(rgb, gt, modal_x, self.config.train_scale_array)
 
         rgb = normalize(rgb, self.norm_mean, self.norm_std)
@@ -55,6 +56,7 @@ class TrainPre(object):
 
         crop_size = (self.config.image_height, self.config.image_width)
         crop_pos = generate_random_crop_pos(rgb.shape[:2], crop_size)
+        # print("crop_pos:", rgb.shape[:2], crop_size, crop_pos)
 
         p_rgb, _ = random_crop_pad_to_shape(rgb, crop_pos, crop_size, 0)
         p_gt, _ = random_crop_pad_to_shape(gt, crop_pos, crop_size, 255)

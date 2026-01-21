@@ -31,6 +31,7 @@ C.eval_source = osp.join(C.dataset_path, "test.txt")
 C.is_test = True
 C.num_train_imgs = None
 C.num_eval_imgs = None
+# C.num_eval_imgs = 3150
 C.num_classes = N
 C.class_names = []
 
@@ -80,8 +81,6 @@ C.checkpoint_start_epoch = 250
 C.checkpoint_step = 25
 
 """Path Config"""
-
-
 def add_path(path):
     if path not in sys.path:
         sys.path.insert(0, path)

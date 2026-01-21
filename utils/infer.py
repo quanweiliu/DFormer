@@ -151,6 +151,8 @@ with Engine(custom_parser=parser) as engine:
                 engine,
                 save_dir=None,
             )
+
+            # 测试时增强
             # all_metrics = evaluate_msf(
             #     model,
             #     val_loader,
@@ -167,12 +169,14 @@ with Engine(custom_parser=parser) as engine:
                 for k, v in score.items():
                     print('{}: {}'.format(k, round(v * 100, 2)) + '\n')
                 
+                # 第二种 metric，淘汰
                 # for other_metric in all_metrics[1:]:
                 #     metric.update_hist(other_metric.hist)
                 # ious, miou = metric.compute_iou()
                 # acc, macc = metric.compute_pixel_acc()
                 # f1, mf1 = metric.compute_f1()
                 # print(acc, "---------")
+                # print(macc, "---------")
                 # print(mf1, "---------")
                 # print(miou, "---------")
     else:
@@ -198,9 +202,18 @@ with Engine(custom_parser=parser) as engine:
             #     True,
             #     engine,
             # )
-            ious, miou = metric.compute_iou()
-            acc, macc = metric.compute_pixel_acc()
-            f1, mf1 = metric.compute_f1()
-            print("acc", acc)
-            print("mf1", mf1)
-            print("miou", miou)
+
+            score, class_iou = metric.get_scores()
+            for k, v in score.items():
+                print('{}: {}'.format(k, round(v * 100, 2)) + '\n')
+            
+            # 第二种 metric，淘汰
+            # for other_metric in all_metrics[1:]:
+            #     metric.update_hist(other_metric.hist)
+            # ious, miou = metric.compute_iou()
+            # acc, macc = metric.compute_pixel_acc()
+            # f1, mf1 = metric.compute_f1()
+            # print(acc, "---------")
+            # print(macc, "---------")
+            # print(mf1, "---------")
+            # print(miou, "---------")

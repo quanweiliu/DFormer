@@ -1,9 +1,10 @@
-import torch
-from torch import Tensor
-from typing import Tuple
-
+# import torch
+# from torch import Tensor
+# from typing import Tuple
 
 # class Metrics:
+#     # torch 版本
+#     # 正确的评估代码，但是通过在 update 中过滤背景像素，再对全部类平均
 #     def __init__(self, num_classes: int, ignore_label: int, device) -> None:
 #         self.ignore_label = ignore_label
 #         self.num_classes = num_classes
@@ -51,8 +52,9 @@ from typing import Tuple
 
 import numpy as np
 
-
 class Metrics(object):
+    # numpy 版本
+    # 也是正确的评估代码，统计全类混淆矩阵，再对有效类做平均
     def __init__(self, n_classes, ignore_label=None, device=None):
         self.ignore_label = ignore_label
         self.n_classes = n_classes

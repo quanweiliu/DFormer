@@ -15,8 +15,8 @@ PYTHONPATH="$(dirname $0)/..":$PYTHONPATH \
     --nproc_per_node=$GPUS \
     --master_port=$PORT \
     utils/infer.py \
-    --config=local_configs.ISPRS_Vaihingen_L \
-    --continue_fpath=/home/icclab/Documents/lqw/Multimodal_Segmentation/DFormer/results/Vaihingen_DFormerv2_L_20251022-235958/epoch-92_miou_63.53.pth \
+    --config=local_configs.ISPRS_Potsdam_B \
+    --continue_fpath=/home/icclab/Documents/lqw/Multimodal_Segmentation/DFormer/results/Potsdam_DFormerv2_B_20251024-001638/epoch-30_miou_74.69.pth \
     --save_path "" \
     --gpus=$GPUS
 
@@ -27,7 +27,7 @@ PYTHONPATH="$(dirname $0)/..":$PYTHONPATH \
 # --continue_fpath=/home/icclab/Documents/lqw/Multimodal_Segmentation/DFormer/checkpoints/DFormerv2_Base_NYU.pth
 
 # --config=local_configs.NYUDepthv2.DFormerv2_L
-# --continue_fpath=/home/icclab/Documents/lqw/Multimodal_Segmentation/DFormer/checkpoints/DFormerv2_Base_NYU.pth
+# --continue_fpath=/home/icclab/Documents/lqw/Multimodal_Segmentation/DFormer/checkpoints/DFormerv2_Large_NYU.pth
 
 # --config=local_configs.NYUDepthv2.DFormer_Large/Base/Small/Tiny
 # --continue_fpath=checkpoints/NYUv2_DFormer_Large/Base/Small/Tiny.pth

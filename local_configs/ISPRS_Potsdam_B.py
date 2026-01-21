@@ -12,7 +12,7 @@ cfg = C
 
 remoteip = os.popen("pwd").read()
 C.root_dir = "/home/icclab/Documents/lqw/DatasetMMF"
-C.root_dir = "/home/icclab/Documents/lqw/Multimodal_Segmentation/RSSegExpts/assets/test_Pots"
+# C.root_dir = "/home/icclab/Documents/lqw/Multimodal_Segmentation/RSSegExpts/assets/test_Pots"
 C.abs_dir = osp.realpath(".")
 
 # Dataset config
@@ -75,15 +75,13 @@ C.eval_iter = 25
 C.eval_stride_rate = 2 / 3
 C.eval_scale_array = [1]  # [0.75, 1, 1.25] #
 C.eval_flip = True  # False #
-C.eval_crop_size = [256, 256]  # [height weight]
+C.eval_crop_size = [512, 512]  # [height weight]
 
 """Store Config"""
 C.checkpoint_start_epoch = 50
 C.checkpoint_step = 25
 
 """Path Config"""
-
-
 def add_path(path):
     if path not in sys.path:
         sys.path.insert(0, path)

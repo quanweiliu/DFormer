@@ -55,10 +55,8 @@ import torch._dynamo
 torch._dynamo.config.suppress_errors = True
 # torch._dynamo.config.automatic_dynamic_shapes = False
 
-
 def is_eval(epoch, config):
     return epoch > int(config.checkpoint_start_epoch) or epoch == 1 or epoch % 10 == 0
-
 
 class gpu_timer:
     def __init__(self, beta=0.6) -> None:

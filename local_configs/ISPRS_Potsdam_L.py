@@ -27,8 +27,8 @@ C.x_root_folder = osp.join(C.dataset_path, "DSM256")
 C.x_format = ".tif"
 C.x_is_single_channel = True
 C.train_source = osp.join(C.dataset_path, "train.txt")
-C.eval_source = osp.join(C.dataset_path, "val.txt")
-# C.eval_source = osp.join(C.dataset_path, "test.txt")
+# C.eval_source = osp.join(C.dataset_path, "val.txt")
+C.eval_source = osp.join(C.dataset_path, "test.txt")
 C.is_test = True
 C.num_train_imgs = 3825
 C.num_eval_imgs = 1350
@@ -63,6 +63,7 @@ C.train_scale_array = [0.5, 0.75, 1, 1.25, 1.5, 1.75]
 C.warm_up_epoch = 10
 C.channels = [96, 192, 288, 576]
 
+
 C.fix_bias = True
 C.bn_eps = 1e-3
 C.bn_momentum = 0.1
@@ -74,15 +75,13 @@ C.eval_iter = 25
 C.eval_stride_rate = 2 / 3
 C.eval_scale_array = [1]  # [0.75, 1, 1.25] #
 C.eval_flip = True  # False #
-C.eval_crop_size = [256, 256]  # [height weight]
+C.eval_crop_size = [512, 512]  # [height weight]
 
 """Store Config"""
 C.checkpoint_start_epoch = 50
 C.checkpoint_step = 25
 
 """Path Config"""
-
-
 def add_path(path):
     if path not in sys.path:
         sys.path.insert(0, path)

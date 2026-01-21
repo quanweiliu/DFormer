@@ -81,8 +81,6 @@ C.checkpoint_start_epoch = 50
 C.checkpoint_step = 25
 
 """Path Config"""
-
-
 def add_path(path):
     if path not in sys.path:
         sys.path.insert(0, path)

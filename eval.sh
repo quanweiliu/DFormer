@@ -1,7 +1,7 @@
 # CUDA_VISIBLE_DEVICES=0,1
 # config -> which model config
 # continue_fpath -> the trained pth path
-GPUS=8
+GPUS=2
 NNODES=1
 NODE_RANK=${NODE_RANK:-0}
 PORT=${PORT:-29158}
@@ -27,14 +27,14 @@ PYTHONPATH="$(dirname $0)/..":$PYTHONPATH \
     --compile_mode="reduce-overhead" \
     --amp \
     --pad_SUNRGBD \
-    --continue_fpath="checkpoints/trained/DFormerv2_Small_NYU.pth"
+    --continue_fpath="checkpoints/DFormerv2_Small_NYU.pth"
 
 # choose the dataset and DFormer for evaluating
 
 # NYUv2 DFormers
 # --config=local_configs.NYUDepthv2.DFormer_Large/Base/Small/Tiny
-# --continue_fpath=checkpoints/trained/NYUv2_DFormer_Large/Base/Small/Tiny.pth
+# --continue_fpath=checkpoints/NYUv2_DFormer_Large/Base/Small/Tiny.pth
 
 # SUNRGBD DFormers
 # --config=local_configs.SUNRGBD.DFormer_Large/Base/Small/Tiny
-# --continue_fpath=checkpoints/trained/SUNRGBD_DFormer_Large/Base/Small/Tiny.pth
+# --continue_fpath=checkpoints/SUNRGBD_DFormer_Large/Base/Small/Tiny.pth

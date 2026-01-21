@@ -15,17 +15,43 @@ PYTHONPATH="$(dirname $0)/..":$PYTHONPATH \
     --nproc_per_node=$GPUS \
     --master_port=$PORT \
     utils/infer.py \
-    --config=local_configs.NYUDepthv2.DFormer_Large \
-    --continue_fpath=checkpoints/trained/NYUv2_DFormer_Large.pth \
-    --save_path "output/" \
+    --config=local_configs.ISPRS_Vaihingen_L \
+    --continue_fpath=/home/icclab/Documents/lqw/Multimodal_Segmentation/DFormer/results/Vaihingen_DFormerv2_L_20251022-235958/epoch-92_miou_63.53.pth \
+    --save_path "" \
     --gpus=$GPUS
 
 # choose the dataset and DFormer for evaluating
 
 # NYUv2 DFormers
+# --config=local_configs.NYUDepthv2.DFormerv2_B
+# --continue_fpath=/home/icclab/Documents/lqw/Multimodal_Segmentation/DFormer/checkpoints/DFormerv2_Base_NYU.pth
+
+# --config=local_configs.NYUDepthv2.DFormerv2_L
+# --continue_fpath=/home/icclab/Documents/lqw/Multimodal_Segmentation/DFormer/checkpoints/DFormerv2_Base_NYU.pth
+
 # --config=local_configs.NYUDepthv2.DFormer_Large/Base/Small/Tiny
-# --continue_fpath=checkpoints/trained/NYUv2_DFormer_Large/Base/Small/Tiny.pth
+# --continue_fpath=checkpoints/NYUv2_DFormer_Large/Base/Small/Tiny.pth
 
 # SUNRGBD DFormers
 # --config=local_configs.SUNRGBD.DFormer_Large/Base/Small/Tiny
-# --continue_fpath=checkpoints/trained/SUNRGBD_DFormer_Large/Base/Small/Tiny.pth
+# --continue_fpath=checkpoints/SUNRGBD_DFormer_Large/Base/Small/Tiny.pth
+
+# ISPRS Vaihingen DFormer
+# --config=local_configs.ISPRS_Vaihingen_S
+# --config=local_configs.ISPRS_Vaihingen_B
+# --config=local_configs.ISPRS_Vaihingen_L
+# --continue_fpath=/home/icclab/Documents/lqw/Multimodal_Segmentation/DFormer/results/Vaihingen_DFormerv2_S_20251023-140912/epoch-97_miou_61.81.pth
+# --continue_fpath=/home/icclab/Documents/lqw/Multimodal_Segmentation/DFormer/results/Vaihingen_DFormerv2_B_20251023-145429/epoch-81_miou_62.35.pth
+# --continue_fpath=/home/icclab/Documents/lqw/Multimodal_Segmentation/DFormer/results/Vaihingen_DFormerv2_L_20251022-235958/epoch-92_miou_63.53.pth
+
+
+# ISPRS Potsdam DFormer
+# --config=local_configs.ISPRS_Potsdam_S
+# --config=local_configs.ISPRS_Potsdam_B
+# --config=local_configs.ISPRS_Potsdam_L
+# --continue_fpath=/home/icclab/Documents/lqw/Multimodal_Segmentation/DFormer/results/Potsdam_DFormerv2_S_20251023-180934/epoch-52_miou_73.59.pth
+# --continue_fpath=/home/icclab/Documents/lqw/Multimodal_Segmentation/DFormer/results/Potsdam_DFormerv2_S_20251023-180934/epoch-63_miou_74.11.pth
+# --continue_fpath=/home/icclab/Documents/lqw/Multimodal_Segmentation/DFormer/results/Potsdam_DFormerv2_B_20251024-001638/epoch-30_miou_74.69.pth
+
+
+

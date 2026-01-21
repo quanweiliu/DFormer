@@ -2,7 +2,7 @@ from .._base_.datasets.NYUDepthv2 import *
 
 """ Settings for network, this would be different for each kind of model"""
 C.backbone = "DFormer-Large"  # Remember change the path below.
-C.pretrained_model = "checkpoints/pretrained/DFormer_Large.pth.tar"
+C.pretrained_model = "checkpoints/DFormer_Large.pth.tar"
 C.decoder = "ham"
 C.decoder_embed_dim = 512
 C.optimizer = "AdamW"

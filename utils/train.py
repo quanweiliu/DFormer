@@ -15,7 +15,8 @@ from val_mm import evaluate, evaluate_msf
 
 from models.builder import EncoderDecoder as segmodel
 from utils.dataloader.dataloader import get_train_loader, get_val_loader
-from utils.dataloader.RGBXDataset import RGBXDataset
+# from utils.dataloader.RGBXDataset import RGBXDataset
+from utils.dataloader.TIFDataset import RGBXDataset
 from utils.engine.engine import Engine
 from utils.engine.logger import get_logger
 from utils.init_func import configure_optimizers, group_weight
@@ -283,7 +284,7 @@ with Engine(custom_parser=parser) as engine:
     eval_timer = gpu_timer()
 
     if args.amp:
-        scaler = torch.cuda.amp.GradScaler()
+        scaler = torch.amp.GradScaler()
     for epoch in range(engine.state.epoch, config.nepochs + 1):
         model = compiled_model
         model.train()
@@ -315,6 +316,8 @@ with Engine(custom_parser=parser) as engine:
             imgs = imgs.cuda(non_blocking=True)
             gts = gts.cuda(non_blocking=True)
             modal_xs = modal_xs.cuda(non_blocking=True)
+            # 8, 3, 480, 640 / 8, 3, 480, 640 / 8, 480, 640
+            # print("imgs", imgs.shape, "modal_xs", modal_xs.shape, "gts", gts.shape)
 
             if args.amp:
                 with torch.autocast(device_type="cuda", dtype=torch.float16):

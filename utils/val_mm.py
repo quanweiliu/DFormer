@@ -78,7 +78,15 @@ import cv2
 
 
 @torch.no_grad()
-def evaluate(model, dataloader, config, device, engine, save_dir=None, sliding=False):
+def evaluate(
+    model, 
+    dataloader, 
+    config, 
+    device, 
+    engine, 
+    save_dir=None, 
+    sliding=False):
+
     print("Evaluating...")
     model.eval()
     n_classes = config.num_classes
@@ -101,11 +109,12 @@ def evaluate(model, dataloader, config, device, engine, save_dir=None, sliding=F
         # print(images.shape,labels.shape)
         images = [images.to(device), modal_xs.to(device)]
         labels = labels.to(device)
+        
         if sliding:
             preds = slide_inference(model, images, modal_xs, config).softmax(dim=1)
         else:
             preds = model(images[0], images[1]).softmax(dim=1)
-        # print(preds.shape,labels.shape)
+        # print(preds.shape, labels.shape, np.unique(preds.cpu().numpy()))
         B, H, W = labels.shape
         metrics.update(preds, labels)
         # for i in range(B):
@@ -113,40 +122,90 @@ def evaluate(model, dataloader, config, device, engine, save_dir=None, sliding=F
         # metrics.update(preds, labels)
 
         if save_dir is not None:
-            palette = [
-                [128, 64, 128],
-                [244, 35, 232],
-                [70, 70, 70],
-                [102, 102, 156],
-                [190, 153, 153],
-                [153, 153, 153],
-                [250, 170, 30],
-                [220, 220, 0],
-                [107, 142, 35],
-                [152, 251, 152],
-                [70, 130, 180],
-                [220, 20, 60],
-                [255, 0, 0],
-                [0, 0, 142],
-                [0, 0, 70],
-                [0, 60, 100],
-                [0, 80, 100],
-                [0, 0, 230],
-                [119, 11, 32],
-            ]
-            palette = np.array(palette, dtype=np.uint8)
-            cmap = ListedColormap(palette)
+            # palette = [
+            #     [128, 64, 128],
+            #     [244, 35, 232],
+            #     [70, 70, 70],
+            #     [102, 102, 156],
+            #     [190, 153, 153],
+            #     [153, 153, 153],
+            #     [250, 170, 30],
+            #     [220, 220, 0],
+            #     [107, 142, 35],
+            #     [152, 251, 152],
+            #     [70, 130, 180],
+            #     [220, 20, 60],
+            #     [255, 0, 0],
+            #     [0, 0, 142],
+            #     [0, 0, 70],
+            #     [0, 60, 100],
+            #     [0, 80, 100],
+            #     [0, 0, 230],
+            #     [119, 11, 32],
+            # ]
+            # palette = np.array(palette, dtype=np.uint8)
+            # cmap = ListedColormap(palette)
             names = minibatch["fn"][0].replace(".jpg", "").replace(".png", "").replace("datasets/", "")
             save_name = save_dir + "/" + names + "_pred.png"
             pathlib.Path(save_name).parent.mkdir(parents=True, exist_ok=True)
             preds = preds.argmax(dim=1).cpu().squeeze().numpy().astype(np.uint8)
+            # print("np.unique(preds)", np.unique(preds))  # 0-39
             if config.dataset_name in ["KITTI-360", "EventScape"]:
                 preds = palette[preds]
                 plt.imsave(save_name, preds)
             elif config.dataset_name in ["NYUDepthv2", "SUNRGBD"]:
-                palette = np.load("./utils/nyucmap.npy")
-                preds = palette[preds]
-                plt.imsave(save_name, preds)
+                # palette = np.load("./utils/nyucmap.npy")
+
+                palette = np.array(
+                    [
+                        [0, 0, 0],
+                        [148, 65, 137],
+                        [255, 116, 69],
+                        [86, 156, 137],
+                        [202, 179, 158],
+                        [155, 99, 235],
+                        [161, 107, 108],
+                        [133, 160, 103],
+                        [76, 152, 126],
+                        [84, 62, 35],
+                        [44, 80, 130],
+                        [31, 184, 157],
+                        [101, 144, 77],
+                        [23, 197, 62],
+                        [141, 168, 145],
+                        [142, 151, 136],
+                        [115, 201, 77],
+                        [100, 216, 255],
+                        [57, 156, 36],
+                        [88, 108, 129],
+                        [105, 129, 112],
+                        [42, 137, 126],
+                        [155, 108, 249],
+                        [166, 148, 143],
+                        [81, 91, 87],
+                        [100, 124, 51],
+                        [73, 131, 121],
+                        [157, 210, 220],
+                        [134, 181, 60],
+                        [221, 223, 147],
+                        [123, 108, 131],
+                        [161, 66, 179],
+                        [163, 221, 160],
+                        [31, 146, 98],
+                        [99, 121, 30],
+                        [49, 89, 240],
+                        [116, 108, 9],
+                        [161, 176, 169],
+                        [80, 29, 135],
+                        [177, 105, 197],
+                        [139, 110, 246],
+                    ],
+                    dtype=np.uint8,
+                )
+
+                preds = palette[preds+1]
+                # plt.imsave(save_name, preds)
+                cv2.imwrite(save_name, preds)
             elif config.dataset_name in ["MFNet"]:
                 palette = np.array(
                     [
@@ -164,6 +223,21 @@ def evaluate(model, dataloader, config, device, engine, save_dir=None, sliding=F
                 )
                 preds = palette[preds]
                 plt.imsave(save_name, preds)
+            elif config.dataset_name in ["Vaihingen"] or config.dataset_name in ["Potsdam"]:
+                palette = np.array(
+                    [
+                        [255, 255, 255],
+                        [0, 0, 255],
+                        [0, 255, 255],
+                        [0, 255, 0],
+                        [255, 255, 0],
+                        [255, 0, 0],
+                    ],
+                    dtype=np.uint8,
+                )
+                preds = palette[preds]
+                plt.imsave(save_name, preds)
+                print("Saved image: ", save_name)
             else:
                 assert 1 == 2
 
@@ -264,6 +338,8 @@ def evaluate_msf(
             (engine.distributed and (engine.local_rank == 0)) or (not engine.distributed)
         ):
             print(f"Validation Iter: {idx + 1} / {len(dataloader)}")
+        # if idx >= 100:
+        #     continue
         images = minibatch["data"]
         labels = minibatch["label"]
         modal_xs = minibatch["modal_x"]
@@ -347,6 +423,20 @@ def evaluate_msf(
                         [64, 64, 128],
                         [192, 128, 128],
                         [192, 64, 0],
+                    ],
+                    dtype=np.uint8,
+                )
+                preds = palette[preds]
+                plt.imsave(save_name, preds)
+            elif config.dataset_name in ["Vaihingen"]:
+                palette = np.array(
+                    [
+                        [255, 255, 255],
+                        [0, 0, 255],
+                        [0, 255, 255],
+                        [0, 255, 0],
+                        [255, 255, 0],
+                        [255, 0, 0],
                     ],
                     dtype=np.uint8,
                 )

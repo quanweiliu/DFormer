@@ -15,7 +15,7 @@ PYTHONPATH="$(dirname $0)/..":"$(dirname $0)":$PYTHONPATH \
     --nproc_per_node=$GPUS \
     --master_port=$PORT \
     utils/train.py \
-    --config=local_configs.NYUDepthv2.DFormerv2_S --gpus=$GPUS \
+    --config=local_configs.ISPRS_Potsdam_B --gpus=$GPUS \
     --no-sliding \
     --no-compile \
     --syncbn \
@@ -31,9 +31,39 @@ PYTHONPATH="$(dirname $0)/..":"$(dirname $0)":$PYTHONPATH \
 # local_configs.NYUDepthv2.DFormer_Base
 # local_configs.NYUDepthv2.DFormer_Small
 # local_configs.NYUDepthv2.DFormer_Tiny
-# local_configs.NYUDepthv2.DFormer_v2_S
-# local_configs.NYUDepthv2.DFormer_v2_B
-# local_configs.NYUDepthv2.DFormer_v2_L
+# local_configs.NYUDepthv2.DFormerv2_S
+# local_configs.NYUDepthv2.DFormerv2_B
+# local_configs.NYUDepthv2.DFormerv2_L
+
+
+# local_configs.ISPRS_Vaihingen_S
+# local_configs.ISPRS_Vaihingen_B
+# local_configs.ISPRS_Vaihingen_L
+
+# local_configs.ISPRS_Potsdam_S
+# local_configs.ISPRS_Potsdam_B
+# local_configs.ISPRS_Potsdam_L
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 # config for DFormers on SUNRGBD
 # local_configs.SUNRGBD.DFormer_Large

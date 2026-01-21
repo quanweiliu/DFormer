@@ -1,5 +1,6 @@
 # Byte-compiled / optimized / DLL files
 __pycache__/
+results/
 *.py[cod]
 *$py.class
 
@@ -160,7 +161,7 @@ cython_debug/
 #.idea/
 
 core.*
-checkpoints
+checkpoints/
 datasets/NYU*
 datasets/rgbd*
 datasets/SUN*

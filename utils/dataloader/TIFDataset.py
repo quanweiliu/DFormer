@@ -2,9 +2,37 @@ import os
 import cv2
 import torch
 import numpy as np
-from torchvision.transforms import v2
+import rasterio
+import warnings
+warnings.filterwarnings("ignore", category=rasterio.errors.NotGeoreferencedWarning)
 
 import torch.utils.data as data
+from torchvision.transforms import v2
+
+
+def rgb_to_2D_label(label):
+    """
+    Suply our label masks as input in RGB format. 
+    Replace pixels with specific RGB values ...
+    """
+    ImSurf = [255, 255, 255] # Impervious 
+    Clutter = [0, 0, 255] # Building  
+    Car = [0, 255, 255] # Vegetation 
+    Tree = [0, 255, 0] # Tree
+    LowVeg = [255, 255, 0] # Car
+    Building = [255, 0, 0] # Clutter 
+
+    label_seg = np.zeros(label.shape,dtype=np.uint8)
+    label_seg [np.all(label==ImSurf,axis=-1)] = 0
+    label_seg [np.all(label==Building,axis=-1)] = 1
+    label_seg [np.all(label==LowVeg,axis=-1)] = 2
+    label_seg [np.all(label==Tree,axis=-1)] = 3
+    label_seg [np.all(label==Car,axis=-1)] = 4
+    label_seg [np.all(label==Clutter,axis=-1)] = 5
+
+    # label_seg = label_seg[:,:,0]  #Just take the first channel, no need for all 3 channels
+    
+    return label_seg
 
 
 def get_path(
@@ -90,6 +118,15 @@ def get_path(
             _gt_path,
             item_name.replace("rgb", "semantic").replace("image", "gt_labelIds") + _gt_format,
         )
+
+    elif dataset_name == "Vaihingen" or dataset_name == "Potsdam":
+        # print("Vaihingen", item_name)
+
+        # item_name = item_name.split("/")[1].split(".jpg")[0]
+        rgb_path = os.path.join(_rgb_path, item_name + _rgb_format)
+        d_path = os.path.join(_x_path, item_name + _x_format)
+        gt_path = os.path.join(_gt_path, item_name + _gt_format)
+
     else:
         item_name = item_name.split("/")[1].split(".jpg")[0]
         rgb_path = os.path.join(
@@ -104,7 +141,7 @@ def get_path(
             _gt_path,
             item_name.replace(".jpg", "").replace(".png", "") + _gt_format,
         )
-    path_result = {"rgb_path": rgb_path, "gt_path": gt_path}
+    path_result = {"rgb_path": rgb_path, "d_path": d_path, "gt_path": gt_path}
     for modal in x_modal:
         path_result[modal + "_path"] = eval(modal + "_path")
     return path_result
@@ -154,39 +191,45 @@ class RGBXDataset(data.Dataset):
             self.x_modal,
             item_name,
         )
-        if self.dataset_name == "SUNRGBD" and self.backbone.startswith("DFormerv2"):
-            rgb_mode = "RGB"  # some checkpoints are run by BGR and some are on RGB, need to select
-        else:
-            rgb_mode = "BGR"
-        rgb = self._open_image(path_dict["rgb_path"], rgb_mode)
+        # if self.dataset_name == "SUNRGBD" and self.backbone.startswith("DFormerv2"):
+        #     rgb_mode = "RGB"  # some checkpoints are run by BGR and some are on RGB, need to select
+        # else:
+        #     rgb_mode = "BGR"
+        # rasterio.open(filepath)
+        rgb = rasterio.open(path_dict["rgb_path"]).read().transpose(1, 2, 0)
+        x = rasterio.open(path_dict["d_path"]).read()
+        x = np.tile(x, (3, 1, 1)).transpose(1, 2, 0)
+        gt = rasterio.open(path_dict["gt_path"]).read().transpose(1, 2, 0)
+        gt = rgb_to_2D_label(gt)[:, :, 0]
+        # print("gt", gt.shape)
 
-        gt = self._open_image(path_dict["gt_path"], cv2.IMREAD_GRAYSCALE, dtype=np.uint8)
-        if self._transform_gt:
-            gt = self._gt_transform(gt)
+        # gt = self._open_image(path_dict["gt_path"], cv2.IMREAD_GRAYSCALE, dtype=np.uint8)
+        # if self._transform_gt:
+        #     gt = self._gt_transform(gt)
 
-        x = {}
-        for modal in self.x_modal:
-            if modal == "d":
-                x[modal] = self._open_image(path_dict[modal + "_path"], cv2.IMREAD_GRAYSCALE)
-                x[modal] = cv2.merge([x[modal], x[modal], x[modal]])
-            else:
-                x[modal] = self._open_image(path_dict[modal + "_path"], "RGB")
-        if len(self.x_modal) == 1:
-            x = x[self.x_modal[0]]
+        # x = {}
+        # for modal in self.x_modal:
+        #     if modal == "d":
+        #         x[modal] = self._open_image(path_dict[modal + "_path"], cv2.IMREAD_GRAYSCALE)
+        #         x[modal] = cv2.merge([x[modal], x[modal], x[modal]])
+        #     else:
+        #         x[modal] = self._open_image(path_dict[modal + "_path"], "RGB")
+        # if len(self.x_modal) == 1:
+        #     x = x[self.x_modal[0]]
 
-        if self.dataset_name == "Scannet":
-            rgb = cv2.resize(rgb, (640, 480), interpolation=cv2.INTER_LINEAR)
-            x = cv2.resize(x, (640, 480), interpolation=cv2.INTER_LINEAR)
-            gt = cv2.resize(gt, (640, 480), interpolation=cv2.INTER_NEAREST)
-        elif self.dataset_name == "StanFord2D3D":
-            rgb = cv2.resize(rgb, dsize=(480, 480), interpolation=cv2.INTER_LINEAR)
-            x = cv2.resize(x, dsize=(480, 480), interpolation=cv2.INTER_LINEAR)
-            gt = cv2.resize(gt, dsize=(480, 480), interpolation=cv2.INTER_NEAREST)
+        # if self.dataset_name == "Scannet":
+        #     rgb = cv2.resize(rgb, (640, 480), interpolation=cv2.INTER_LINEAR)
+        #     x = cv2.resize(x, (640, 480), interpolation=cv2.INTER_LINEAR)
+        #     gt = cv2.resize(gt, (640, 480), interpolation=cv2.INTER_NEAREST)
+        # elif self.dataset_name == "StanFord2D3D":
+        #     rgb = cv2.resize(rgb, dsize=(480, 480), interpolation=cv2.INTER_LINEAR)
+        #     x = cv2.resize(x, dsize=(480, 480), interpolation=cv2.INTER_LINEAR)
+        #     gt = cv2.resize(gt, dsize=(480, 480), interpolation=cv2.INTER_NEAREST)
+
+        # print("rgb", rgb.shape, "x", x.shape, "gt", gt.shape)
+        # image (256, 256, 3) x (256, 256, 3) gt (256, 256)
 
 
-        # print("rgb shape: ", rgb.shape)   # (480, 640, 3)
-        # print("x shape: ", x.shape)      #  (480, 640, 3)
-        # print("gt shape: ", gt.shape)    # (480, 640)
         # if self._x_single_channel:
         #     x = self._open_image(x_path, cv2.IMREAD_GRAYSCALE)
         #     x = cv2.merge([x, x, x])
@@ -202,8 +245,9 @@ class RGBXDataset(data.Dataset):
         x = torch.from_numpy(np.ascontiguousarray(x)).float()
 
         # 合成数据
-        # x = x.RandomPerspective(distortion_scale=0.6, p=1)(x)
-        
+        x = v2.RandomPerspective(distortion_scale=0.6, p=1)(x)
+        # print("x_augmented done")
+
         # if self._split_name == "train":
         #     rgb = torch.from_numpy(np.ascontiguousarray(rgb)).float()
         #     gt = torch.from_numpy(np.ascontiguousarray(gt)).long()
@@ -256,9 +300,13 @@ class RGBXDataset(data.Dataset):
         elif mode == "BGR":
             img = np.array(cv2.imread(filepath, cv2.IMREAD_UNCHANGED), dtype=dtype)
         else:
-            # print("filepath", filepath)
             img = np.array(cv2.imread(filepath, mode), dtype=dtype)
         return img
+    # @staticmethod
+    # def _open_rs(filepath):
+    #     img = rasterio.open(filepath)
+    #     return img
+    
     @staticmethod
     def _gt_transform(gt):
         return gt - 1

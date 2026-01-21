@@ -5,6 +5,7 @@ import random
 import sys
 import time
 from importlib import import_module
+from thop import profile, clever_format
 
 import numpy as np
 import torch
@@ -18,7 +19,8 @@ from tqdm import tqdm
 
 from models.builder import EncoderDecoder as segmodel
 from utils.dataloader.dataloader import ValPre, get_train_loader, get_val_loader
-from utils.dataloader.RGBXDataset import RGBXDataset
+# from utils.dataloader.RGBXDataset import RGBXDataset
+from utils.dataloader.TIFDataset import RGBXDataset
 from utils.engine.engine import Engine
 from utils.engine.logger import get_logger
 from utils.init_func import group_weight, init_weight
@@ -60,7 +62,6 @@ with Engine(custom_parser=parser) as engine:
     if "x_modal" not in config:
         config["x_modal"] = "d"
     cudnn.benchmark = True
-
     val_loader, val_sampler = get_val_loader(engine, RGBXDataset, config, int(args.gpus))
     print(len(val_loader))
 
@@ -77,9 +78,23 @@ with Engine(custom_parser=parser) as engine:
 
     model = segmodel(cfg=config, norm_layer=BatchNorm2d)
     weight = torch.load(args.continue_fpath)["model"]
+    # weight = torch.load(args.continue_fpath)["state_dict"]
 
-    print("load model")
+    print("load model from {}".format(args.continue_fpath))
     model.load_state_dict(weight, strict=False)
+
+
+    ################################# FLOPs and Params ###################################################
+
+    # input=(torch.randn(1, 3, 512, 512).to("cuda"), torch.randn(1, 1, 512, 512).to("cuda"))
+
+    # model.to("cuda").eval()
+    # flops, params = profile(model, inputs=input)
+
+    # flops, params = clever_format([flops, params])
+    # print('# Model FLOPs: {}'.format(flops))
+    # print('# Model Params: {}'.format(params))
+
 
     if engine.distributed:
         logger.info(".............distributed training.............")
@@ -128,15 +143,13 @@ with Engine(custom_parser=parser) as engine:
         with torch.no_grad():
             model.eval()
             device = torch.device("cuda")
-            all_metrics = evaluate_msf(
+            all_metrics = evaluate(
                 model,
                 val_loader,
                 config,
                 device,
-                [0.5, 0.75, 1.0, 1.25, 1.5],
-                True,
                 engine,
-                save_dir=args.save_path,
+                save_dir=None,
             )
             # all_metrics = evaluate_msf(
             #     model,
@@ -149,29 +162,45 @@ with Engine(custom_parser=parser) as engine:
             # )
             if engine.local_rank == 0:
                 metric = all_metrics[0]
-                for other_metric in all_metrics[1:]:
-                    metric.update_hist(other_metric.hist)
-                ious, miou = metric.compute_iou()
-                acc, macc = metric.compute_pixel_acc()
-                f1, mf1 = metric.compute_f1()
-                print(miou, "---------")
+                
+                score, class_iou = metric.get_scores()
+                for k, v in score.items():
+                    print('{}: {}'.format(k, round(v * 100, 2)) + '\n')
+                
+                # for other_metric in all_metrics[1:]:
+                #     metric.update_hist(other_metric.hist)
+                # ious, miou = metric.compute_iou()
+                # acc, macc = metric.compute_pixel_acc()
+                # f1, mf1 = metric.compute_f1()
+                # print(acc, "---------")
+                # print(mf1, "---------")
+                # print(miou, "---------")
     else:
         with torch.no_grad():
             model.eval()
             device = torch.device("cuda")
             # metric=evaluate(model, val_loader,config, device, engine)
             # print('acc, macc, f1, mf1, ious, miou',acc, macc, f1, mf1, ious, miou)
-            metric = evaluate_msf(
+            metric = evaluate(
                 model,
                 val_loader,
                 config,
                 device,
-                [0.5, 0.75, 1.0, 1.25, 1.5],
-                True,
                 engine,
                 save_dir=args.save_path,
             )
+            # metric = evaluate_msf(
+            #     model,
+            #     val_loader,
+            #     config,
+            #     device,
+            #     [0.5, 0.75, 1.0, 1.25, 1.5],
+            #     True,
+            #     engine,
+            # )
             ious, miou = metric.compute_iou()
             acc, macc = metric.compute_pixel_acc()
             f1, mf1 = metric.compute_f1()
+            print("acc", acc)
+            print("mf1", mf1)
             print("miou", miou)

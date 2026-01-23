@@ -7,7 +7,7 @@ NODE_RANK=${NODE_RANK:-0}
 PORT=${PORT:-29158}
 MASTER_ADDR=${MASTER_ADDR:-"127.0.0.1"}
 
-export CUDA_VISIBLE_DEVICES="0,1,2,3,4,5,6,7"
+export CUDA_VISIBLE_DEVICES="0,1"
 export TORCHDYNAMO_VERBOSE=1
 
 PYTHONPATH="$(dirname $0)/..":$PYTHONPATH \
@@ -17,17 +17,17 @@ PYTHONPATH="$(dirname $0)/..":$PYTHONPATH \
     --master_addr=$MASTER_ADDR \
     --nproc_per_node=$GPUS \
     --master_port=$PORT \
-    utils/eval.py \
-    --config=local_configs.NYUDepthv2.DFormerv2_S \
+    utils/test.py \
+    --config=local_configs.ISPRS_Vaihingen_S \
+    --continue_fpath=/home/icclab/Documents/lqw/Multimodal_Segmentation/DFormer/results/Vaihingen_DFormerv2_S_20251023-140912/epoch-97_miou_61.81.pth \
     --gpus=$GPUS \
-    --sliding \
+    --no-sliding \
     --no-compile \
     --syncbn \
-    --mst \
+    --no-mst \
     --compile_mode="reduce-overhead" \
     --amp \
-    --pad_SUNRGBD \
-    --continue_fpath="checkpoints/DFormerv2_Small_NYU.pth"
+    # --pad_SUNRGBD \
 
 # choose the dataset and DFormer for evaluating
 

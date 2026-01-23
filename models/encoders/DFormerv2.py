@@ -107,62 +107,105 @@ class PatchMerging(nn.Module):
 
 
 def angle_transform(x, sin, cos):
+    '''
+        RoPE（Rotary Positional Embedding，旋转位置编码）
+        RoPE 不是“把位置加到特征上”，而是“让每个 token 的特征在一个平面里转一个角度”，位置越靠后，转得越多。
+        给每个 token 的特征向量加一个“位置相位（rotation）”，让注意力点积天然包含相对位置信息。
+    '''
     x1 = x[:, :, :, :, ::2]
     x2 = x[:, :, :, :, 1::2]
     return (x * cos) + (torch.stack([-x2, x1], dim=-1).flatten(-2) * sin)
 
 
 class GeoPriorGen(nn.Module):
+    '''
+    几何先验生成器,通过深度信息和位置信息生成几何先验
+    para: 位置编码（sin, cos） 
+    para: 相对距离衰减掩码（decay mask），包含 纯位置距离衰减  和 深度距离衰减 两部分
+    '''
     def __init__(self, embed_dim, num_heads, initial_value, heads_range):
         super().__init__()
+
+        # angle 用于 sin/cos 的频率表示
+        # decay 用于距离衰减计算
         angle = 1.0 / (10000 ** torch.linspace(0, 1, embed_dim // num_heads // 2))
         angle = angle.unsqueeze(-1).repeat(1, 2).flatten()
         self.weight = nn.Parameter(torch.ones(2, 1, 1, 1), requires_grad=True)
+
+        # 生成每个 head 的 decay（核心：每个 head 不同衰减强度）
+        # self.decay = nn.Parameter(decay) 这个可以参数化，如果参数化了，就不用 register_buffer 了
         decay = torch.log(
             1 - 2 ** (-initial_value - heads_range * torch.arange(num_heads, dtype=torch.float) / num_heads)
         )
-        self.register_buffer("angle", angle)
+
+        # 它们不是 Parameter（不更新梯度）但是会随 .to(device) 自动移动到 GPU 
+        # 会被保存到 state_dict
+        self.register_buffer("angle", angle)  
         self.register_buffer("decay", decay)
 
     def generate_depth_decay(self, H: int, W: int, depth_grid):
         """
+        生成“深度差衰减 mask” 意义 深度差大就少看
         generate 2d decay mask, the result is (HW)*(HW)
         H, W are the numbers of patches at each column and row
         """
         B, _, H, W = depth_grid.shape
-        grid_d = depth_grid.reshape(B, H * W, 1)
+        grid_d = depth_grid.reshape(B, H * W, 1)  # (B, HW, 1)
+
         mask_d = grid_d[:, :, None, :] - grid_d[:, None, :, :]
+        # 两两差值 (B, HW, HW, 1) = (B, HW, 1, 1) - (B, 1, HW, 1)
+        # 第 i 个 patch 和第 j 个 patch 的深度差
+        # get new knowledge : PyTorch / NumPy 里，None（也可以写成 unsqueeze）的作用是 在那个位置插入一个长度为 1 的新维度。
+
         mask_d = (mask_d.abs()).sum(dim=-1)
+
+        # 每个 head 用不同的 decay 倍率来缩放深度差。
         mask_d = mask_d.unsqueeze(1) * self.decay[None, :, None, None]
+        # 广播后得到 (B, num_heads, HW, HW)
+
         return mask_d
 
     def generate_pos_decay(self, H: int, W: int):
         """
+        生成“2D 相对位置衰减 mask” 意义 远的少看，近的多看
         generate 2d decay mask, the result is (HW)*(HW)
         H, W are the numbers of patches at each column and row
         """
-        index_h = torch.arange(H).to(self.decay)
+        index_h = torch.arange(H).to(self.decay)  # 把 index_h 转到和 decay “同样的 device + dtype” 上。
         index_w = torch.arange(W).to(self.decay)
         # grid = torch.meshgrid([index_h, index_w])
         grid = torch.meshgrid(index_h, index_w, indexing="ij")
         grid = torch.stack(grid, dim=-1).reshape(H * W, 2)
+        # 把 (H,W) 的坐标压平成列表 (HW, 2)
+
         mask = grid[:, None, :] - grid[None, :, :]
+        # 两两坐标差, 曼哈顿距离矩阵 (HW, 1, 2) - (1, HW, 2) -> (HW, HW, 2)
+
         mask = (mask.abs()).sum(dim=-1)
         mask = mask * self.decay[:, None, None]
+        # 广播后得到 (num_heads, HW, HW)
+
         return mask
 
     def generate_1d_depth_decay(self, H, W, depth_grid):
         """
+        按“单轴”生成深度衰减（用于 split 模式）
+        # 只在一个方向上做 pairwise（比如只对行或列）
         generate 1d depth decay mask, the result is l*l
         """
         mask = depth_grid[:, :, :, :, None] - depth_grid[:, :, :, None, :]
         mask = mask.abs()
-        mask = mask * self.decay[:, None, None, None]
+
+        # 这里都乘 self.decay 因为都是按 head 的深度差衰减，不同的head 不同的衰减强度
+        mask = mask * self.decay[:, None, None, None] 
+        # (B, 1, W, H, H)
+
         assert mask.shape[2:] == (W, H, H)
         return mask
 
     def generate_1d_decay(self, l: int):
         """
+        按“单轴”生成位置衰减（1D 曼哈顿距离）
         generate 1d decay mask, the result is l*l
         """
         index = torch.arange(l).to(self.decay)
@@ -180,35 +223,52 @@ class GeoPriorGen(nn.Module):
         depth_map = F.interpolate(depth_map, size=HW_tuple, mode="bilinear", align_corners=False)
 
         if split_or_not:
+            # 拆成行/列两个方向分别计算，避免 full (HW×HW) 太大
+            # 每个 patch 的 “旋转位置编码” 形式（提供相对位置感）
             index = torch.arange(HW_tuple[0] * HW_tuple[1]).to(self.decay)
             sin = torch.sin(index[:, None] * self.angle[None, :])
             sin = sin.reshape(HW_tuple[0], HW_tuple[1], -1)
             cos = torch.cos(index[:, None] * self.angle[None, :])
             cos = cos.reshape(HW_tuple[0], HW_tuple[1], -1)
+            # shape (H, W, head_dim)
 
+            # 生成两个方向的 depth mask（h方向 / w方向）
             mask_d_h = self.generate_1d_depth_decay(HW_tuple[0], HW_tuple[1], depth_map.transpose(-2, -1))
             mask_d_w = self.generate_1d_depth_decay(HW_tuple[1], HW_tuple[0], depth_map)
+            # print("mask_d_h:", mask_d_h.shape)  # torch.Size([B, num_heads, 64, 64, 64]) changable
 
+            # 生成两个方向的 position mask（h方向 / w方向）
             mask_h = self.generate_1d_decay(HW_tuple[0])
             mask_w = self.generate_1d_decay(HW_tuple[1])
+            # print("mask_h:", mask_h.shape)  # torch.Size([num_heads, 64, 64]) changable
 
+            # 融合 position 和 depth 的 mask（可学习权重）
             mask_h = self.weight[0] * mask_h.unsqueeze(0).unsqueeze(2) + self.weight[1] * mask_d_h
             mask_w = self.weight[0] * mask_w.unsqueeze(0).unsqueeze(2) + self.weight[1] * mask_d_w
 
             geo_prior = ((sin, cos), (mask_h, mask_w))
+            # print("True sin:", sin.shape)    # torch.Size([64, 64, 16]) changable
+            # print("True cos:", cos.shape)    # torch.Size([64, 64, 16]) changable
+            # print("True mask_h:", mask_h.shape)    # torch.Size([B, 4, 64, 64, 64]) changable
+            # print("True mask_w:", mask_w.shape)    # torch.Size([B, 4, 64, 64, 64]) changable
 
         else:
+            # 不拆分，直接用 2D mask
             index = torch.arange(HW_tuple[0] * HW_tuple[1]).to(self.decay)
             sin = torch.sin(index[:, None] * self.angle[None, :])
             sin = sin.reshape(HW_tuple[0], HW_tuple[1], -1)
             cos = torch.cos(index[:, None] * self.angle[None, :])
             cos = cos.reshape(HW_tuple[0], HW_tuple[1], -1)
+            
             mask = self.generate_pos_decay(HW_tuple[0], HW_tuple[1])
 
             mask_d = self.generate_depth_decay(HW_tuple[0], HW_tuple[1], depth_map)
             mask = self.weight[0] * mask + self.weight[1] * mask_d
 
             geo_prior = ((sin, cos), mask)
+            # print("False sin:", sin.shape)    # torch.Size([8, 8, 32])
+            # print("False cos:", cos.shape)    # torch.Size([8, 8, 32])
+            # print("False mask:", mask.shape)    # torch.Size([B, 16, 64, 64])
 
         return geo_prior
 
@@ -239,18 +299,20 @@ class Decomposed_GSA(nn.Module):
         q = self.q_proj(x)
         k = self.k_proj(x)
         v = self.v_proj(x)
-        lepe = self.lepe(v)
+        lepe = self.lepe(v) # ? 
 
+        # 先注入位置信息
         k = k * self.scaling
         q = q.view(bsz, h, w, self.num_heads, self.key_dim).permute(0, 3, 1, 2, 4)  # (b n h w d1)
         k = k.view(bsz, h, w, self.num_heads, self.key_dim).permute(0, 3, 1, 2, 4)  # (b n h w d1)
-        qr = angle_transform(q, sin, cos)
-        kr = angle_transform(k, sin, cos)
+        qr = angle_transform(q, sin, cos)  # rotate
+        kr = angle_transform(k, sin, cos)  # rotate
 
         qr_w = qr.transpose(1, 2)
         kr_w = kr.transpose(1, 2)
         v = v.reshape(bsz, h, w, self.num_heads, -1).permute(0, 1, 3, 2, 4)
 
+        # 然后在一个方向上注入位置+深度信息
         qk_mat_w = qr_w @ kr_w.transpose(-1, -2)
         qk_mat_w = qk_mat_w + mask_w.transpose(1, 2)
         qk_mat_w = torch.softmax(qk_mat_w, -1)
@@ -260,9 +322,11 @@ class Decomposed_GSA(nn.Module):
         kr_h = kr.permute(0, 3, 1, 2, 4)
         v = v.permute(0, 3, 2, 1, 4)
 
+        # 然后在另一个方向上注入位置+深度信息
         qk_mat_h = qr_h @ kr_h.transpose(-1, -2)
         qk_mat_h = qk_mat_h + mask_h.transpose(1, 2)
         qk_mat_h = torch.softmax(qk_mat_h, -1)
+        
         output = torch.matmul(qk_mat_h, v)
 
         output = output.permute(0, 3, 1, 2, 4).flatten(-2, -1)
@@ -415,10 +479,23 @@ class RGBD_Block(nn.Module):
             self.gamma_2 = nn.Parameter(layer_init_values * torch.ones(1, 1, 1, embed_dim), requires_grad=True)
 
     def forward(self, x: torch.Tensor, x_e: torch.Tensor, split_or_not=False):
+        # print("RGBD_Block forward", x.shape, x_e.shape, split_or_not)
+        # 前 三个 stage 是 split_or_not=True，最后一个 stage 是 False
+
+        # torch.Size([B, 64, 64, 64]) torch.Size([B, 1, 256, 256])
+        # torch.Size([B, 32, 32, 128]) torch.Size([B, 1, 256, 256])
+        # torch.Size([B, 16, 16, 256]) torch.Size([B, 1, 256, 256])
+        # torch.Size([B, 8, 8, 512]) torch.Size([B, 1, 256, 256])
         x = x + self.cnn_pos_encode(x)
+        # print("x after cnn pos encode:", x.shape)
+        # [B, 64, 64, 64]
+        # [B, 32, 32, 128]
+        # [B, 16, 16, 256]
+        # [B, 8, 8, 512]
         b, h, w, d = x.size()
 
         geo_prior = self.Geo((h, w), x_e, split_or_not=split_or_not)
+        # print("geo_prior", geo_prior.shape)
 
         # 什么是 layer scale？
         if self.layerscale:
@@ -489,6 +566,8 @@ class BasicLayer(nn.Module):
                 x = checkpoint.checkpoint(blk, x=x, x_e=x_e, split_or_not=self.split_or_not)
             else:
                 x = blk(x, x_e, split_or_not=self.split_or_not)
+
+        # 走完一个 stage 的 layer 后，进行下采样
         if self.downsample is not None:
             x_down = self.downsample(x)
             return x, x_down
@@ -548,7 +627,7 @@ class dformerv2(nn.Module):
                 drop_path=dpr[sum(depths[:i_layer]) : sum(depths[: i_layer + 1])],
                 norm_layer=norm_layer,
                 split_or_not=(i_layer != 3),
-                downsample=PatchMerging if (i_layer < self.num_layers - 1) else None,
+                downsample=PatchMerging if (i_layer < self.num_layers - 1) else None,  # 
                 use_checkpoint=use_checkpoint,
                 layerscale=layerscales[i_layer],
                 layer_init_values=layer_init_values,
@@ -625,6 +704,7 @@ class dformerv2(nn.Module):
     def forward(self, x, x_e):
         # rgb input
         x = self.patch_embed(x)
+        # print("x after patch embed:", x.shape)    # torch.Size([32, 64, 64, 64])
         # depth input
         x_e = x_e[:, 0, :, :].unsqueeze(1)
         # print("x_e", x_e.shape)    # torch.Size([32, 1, 256, 256])

@@ -7,6 +7,9 @@ NODE_RANK=${NODE_RANK:-0}
 PORT=${PORT:-29958}
 MASTER_ADDR=${MASTER_ADDR:-"127.0.0.1"}
 
+export CUDA_VISIBLE_DEVICES="0,1"
+export TORCHDYNAMO_VERBOSE=1
+
 PYTHONPATH="$(dirname $0)/..":$PYTHONPATH \
     torchrun \
     --nnodes=$NNODES \
@@ -17,8 +20,11 @@ PYTHONPATH="$(dirname $0)/..":$PYTHONPATH \
     utils/infer.py \
     --config=local_configs.ISPRS_Vaihingen_S \
     --continue_fpath=/home/icclab/Documents/lqw/Multimodal_Segmentation/DFormer/results/Vaihingen_DFormerv2_S_20251023-140912/epoch-97_miou_61.81.pth \
+    --gpus=$GPUS \
     --save_path "" \
-    --gpus=$GPUS
+    --no-mst \
+    --compile_mode="reduce-overhead" \
+    # --mst \   # enable multi-scale testing
 
 # choose the dataset and DFormer for evaluating
 

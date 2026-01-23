@@ -29,11 +29,11 @@ C.x_format = ".tif"
 C.x_is_single_channel = True
 C.train_source = osp.join(C.dataset_path, "train.txt")
 C.eval_source = osp.join(C.dataset_path, "val.txt")
-# C.eval_source = osp.join(C.dataset_path, "test.txt")
+C.test_source = osp.join(C.dataset_path, "test.txt")
 C.is_test = True
 C.num_train_imgs = 3825
 C.num_eval_imgs = 1350
-# C.num_eval_imgs = 3150
+C.num_test_imgs = 3150
 C.num_classes = 6
 C.class_names = ["Imp.Surf.", "Tree", "Low Veg.", "Building",  "Car", "Clutter"]
 

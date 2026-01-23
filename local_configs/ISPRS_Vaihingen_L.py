@@ -28,12 +28,12 @@ C.x_root_folder = osp.join(C.dataset_path, "DSM256")
 C.x_format = ".tif"
 C.x_is_single_channel = True
 C.train_source = osp.join(C.dataset_path, "train.txt")
-# C.eval_source = osp.join(C.dataset_path, "val.txt")
-C.eval_source = osp.join(C.dataset_path, "test.txt")
+C.eval_source = osp.join(C.dataset_path, "val.txt")
+C.test_source = osp.join(C.dataset_path, "test.txt")
 C.is_test = True
 C.num_train_imgs = 1470
-# C.num_eval_imgs = 611
-C.num_eval_imgs = 2416
+C.num_eval_imgs = 611
+C.num_test_imgs = 2416
 C.num_classes = 6
 C.class_names = ["Imp.Surf.", "Tree", "Low Veg.", "Building",  "Car", "Clutter"]
 

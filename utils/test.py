@@ -2,33 +2,31 @@ import argparse
 import pprint
 import time
 from importlib import import_module
+from thop import profile, clever_format
 
 import torch
-import torch.backends.cudnn as cudnn
 import torch.nn as nn
 from models.builder import EncoderDecoder as segmodel
 from tensorboardX import SummaryWriter
 from torch.nn.parallel import DistributedDataParallel
 from val_mm import evaluate, evaluate_msf
 
-from utils.dataloader.dataloader import get_val_loader
-from utils.dataloader.RGBXDataset import RGBXDataset
+from utils.dataloader.dataloader import get_test_loader
+# from utils.dataloader.RGBXDataset import RGBXDataset
+from utils.dataloader.TIFDataset import RGBXDataset
 from utils.engine.engine import Engine
 from utils.engine.logger import get_logger
 
 # from eval import evaluate_mid
-
 torch.backends.cudnn.enabled = True
 torch.backends.cudnn.benchmark = True
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--config", help="train config file path")
 parser.add_argument("--gpus", help="used gpu number")
-# parser.add_argument('-d', '--devices', default='0,1', type=str)
 parser.add_argument("-v", "--verbose", default=False, action="store_true")
 parser.add_argument("--epochs", default=0)
 parser.add_argument("--show_image", "-s", default=False, action="store_true")
-parser.add_argument("--save_path", default=None)
 parser.add_argument("--checkpoint_dir")
 parser.add_argument("--continue_fpath")
 parser.add_argument("--sliding", default=False, action=argparse.BooleanOptionalAction)
@@ -38,7 +36,10 @@ parser.add_argument("--syncbn", default=True, action=argparse.BooleanOptionalAct
 parser.add_argument("--mst", default=True, action=argparse.BooleanOptionalAction)
 parser.add_argument("--amp", default=True, action=argparse.BooleanOptionalAction)
 parser.add_argument("--pad_SUNRGBD", default=False, action=argparse.BooleanOptionalAction)
-# parser.add_argument('--save_path', '-p', default=None)
+# parser.add_argument('-d', '--devices', default='0,1', type=str)
+parser.add_argument("--device", default="cuda" if torch.cuda.is_available() else 'cpu', 
+                    type=str, help="device to use for training / testing")
+parser.add_argument("--save_path", default=None)
 
 # os.environ['MASTER_PORT'] = '169710'
 torch.set_float32_matmul_precision("high")
@@ -61,29 +62,21 @@ with Engine(custom_parser=parser) as engine:
         raise ValueError("DFormerv2 is not recommended without pad_SUNRGBD")
     config.pad = args.pad_SUNRGBD
 
-    cudnn.benchmark = True
     if config.dataset_name != "SUNRGBD":
-        val_batch_size = int(config.batch_size)
+        test_batch_size = int(config.batch_size)
     elif not args.pad_SUNRGBD:
-        val_batch_size = int(args.gpus)
+        test_batch_size = int(args.gpus)
     else:
-        val_batch_size = 8 * int(args.gpus)
+        test_batch_size = 8 * int(args.gpus)
 
-    if args.mst:
-        val_loader, val_sampler = get_val_loader(
-            engine,
-            RGBXDataset,
-            config,
-            val_batch_size=val_batch_size,
-        )
-    else:
-        val_loader, val_sampler = get_val_loader(
-            engine,
-            RGBXDataset,
-            config,
-            val_batch_size=val_batch_size,
-        )
-    logger.info(f"val dataset len:{len(val_loader) * int(args.gpus)}")
+    # if args.mst:
+    test_loader, test_sampler = get_test_loader(
+                                            engine, 
+                                            RGBXDataset, 
+                                            config, 
+                                            test_batch_size=test_batch_size
+                                        )
+    logger.info(f"val dataset len:{len(test_loader) * int(args.gpus)}")
 
     if (engine.distributed and (engine.local_rank == 0)) or (not engine.distributed):
         tb_dir = config.tb_dir + "/{}".format(time.strftime("%b%d_%d-%H-%M", time.localtime()))
@@ -98,21 +91,18 @@ with Engine(custom_parser=parser) as engine:
         logger.info(k + ": " + str(args.__dict__[k]))
 
     criterion = nn.CrossEntropyLoss(reduction="mean", ignore_index=config.background)
-
-    if args.syncbn:
+    if engine.distributed:
         BatchNorm2d = nn.SyncBatchNorm
         logger.info("using syncbn")
     else:
         BatchNorm2d = nn.BatchNorm2d
         logger.info("using regular bn")
 
-    model = segmodel(
-        cfg=config,
-        criterion=criterion,
-        norm_layer=BatchNorm2d,
-        syncbn=args.syncbn,
-    )
-
+    model = segmodel(cfg=config, 
+                     criterion=criterion,
+                     norm_layer=BatchNorm2d,
+                     syncbn=engine.distributed,
+                    )
     weight = torch.load(args.continue_fpath, map_location=torch.device("cpu"))
     if "model" in weight:
         weight = weight["model"]
@@ -121,6 +111,19 @@ with Engine(custom_parser=parser) as engine:
 
     logger.info(f"load model from {args.continue_fpath}")
     print(model.load_state_dict(weight, strict=False))
+
+
+    ################################# FLOPs and Params ###################################################
+
+    # input=(torch.randn(1, 3, 512, 512).to("cuda"), torch.randn(1, 1, 512, 512).to("cuda"))
+
+    # model.to("cuda").eval()
+    # flops, params = profile(model, inputs=input)
+
+    # flops, params = clever_format([flops, params])
+    # print('# Model FLOPs: {}'.format(flops))
+    # print('# Model Params: {}'.format(params))
+
 
     if engine.distributed:
         logger.info(".............distributed training.............")
@@ -133,11 +136,15 @@ with Engine(custom_parser=parser) as engine:
                 find_unused_parameters=True,
             )
     else:
-        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        model.to(device)
+        # device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        model.to(args.device)
 
     if args.compile:
         model = torch.compile(model, backend="inductor", mode=args.compile_mode)
+
+    engine.register_state(dataloader=test_loader, model=model)
+
+    logger.info("begin testing:")
 
     torch.cuda.empty_cache()
     if args.amp:
@@ -145,13 +152,12 @@ with Engine(custom_parser=parser) as engine:
             if engine.distributed:
                 with torch.no_grad():
                     model.eval()
-                    device = torch.device("cuda")
                     if args.mst:
                         all_metrics = evaluate_msf(
                             model,
-                            val_loader,
+                            test_loader,
                             config,
-                            device,
+                            args.device,
                             [0.5, 0.75, 1.0, 1.25, 1.5],
                             True,
                             engine,
@@ -160,31 +166,37 @@ with Engine(custom_parser=parser) as engine:
                     else:
                         all_metrics = evaluate(
                             model,
-                            val_loader,
+                            test_loader,
                             config,
-                            device,
+                            args.device,
                             engine,
                             sliding=args.sliding,
                         )
+
                     if engine.local_rank == 0:
                         metric = all_metrics[0]
-                        for other_metric in all_metrics[1:]:
-                            metric.update_hist(other_metric.hist)
-                        ious, miou = metric.compute_iou()
-                        acc, macc = metric.compute_pixel_acc()
-                        f1, mf1 = metric.compute_f1()
-                        logger.info(f"miou:{miou}, macc:{macc}, mf1:{mf1}")
-                        logger.info(f"ious:{ious}")
+
+                        score, class_iou = metric.get_scores()
+                        for k, v in score.items():
+                            print('{}: {}'.format(k, round(v * 100, 2)) + '\n')
+
+                        # for other_metric in all_metrics[1:]:
+                        #     metric.update_hist(other_metric.hist)
+                        # ious, miou = metric.compute_iou()
+                        # acc, macc = metric.compute_pixel_acc()
+                        # f1, mf1 = metric.compute_f1()
+                        # logger.info(f"miou:{miou}, macc:{macc}, mf1:{mf1}")
+                        # logger.info(f"ious:{ious}")
+
             elif not engine.distributed:
                 with torch.no_grad():
                     model.eval()
-                    device = torch.device("cuda")
                     if args.mst:
                         metric = evaluate_msf(
                             model,
-                            val_loader,
+                            test_loader,
                             config,
-                            device,
+                            args.device,
                             [0.5, 0.75, 1.0, 1.25, 1.5],
                             True,
                             engine,
@@ -193,28 +205,33 @@ with Engine(custom_parser=parser) as engine:
                     else:
                         metric = evaluate(
                             model,
-                            val_loader,
+                            test_loader,
                             config,
-                            device,
+                            args.device,
                             engine,
                             sliding=args.sliding,
                         )
-                    ious, miou = metric.compute_iou()
-                    acc, macc = metric.compute_pixel_acc()
-                    f1, mf1 = metric.compute_f1()
-                    logger.info(f"miou:{miou}, macc:{macc}, mf1:{mf1}")
-                    logger.info(f"ious:{ious}")
+
+                    score, class_iou = metric.get_scores()
+                    for k, v in score.items():
+                        print('{}: {}'.format(k, round(v * 100, 2)) + '\n')
+
+                    # ious, miou = metric.compute_iou()
+                    # acc, macc = metric.compute_pixel_acc()
+                    # f1, mf1 = metric.compute_f1()
+                    # logger.info(f"miou:{miou}, macc:{macc}, mf1:{mf1}")
+                    # logger.info(f"ious:{ious}")
     else:
         if engine.distributed:
             with torch.no_grad():
                 model.eval()
-                device = torch.device("cuda")
+                # device = torch.device("cuda")
                 if args.mst:
                     all_metrics = evaluate_msf(
                         model,
-                        val_loader,
+                        test_loader,
                         config,
-                        device,
+                        args.device,
                         [0.5, 0.75, 1.0, 1.25, 1.5],
                         True,
                         engine,
@@ -223,31 +240,37 @@ with Engine(custom_parser=parser) as engine:
                 else:
                     all_metrics = evaluate(
                         model,
-                        val_loader,
+                        test_loader,
                         config,
-                        device,
+                        args.device,
                         engine,
                         sliding=args.sliding,
                     )
                 if engine.local_rank == 0:
                     metric = all_metrics[0]
-                    for other_metric in all_metrics[1:]:
-                        metric.update_hist(other_metric.hist)
-                    ious, miou = metric.compute_iou()
-                    acc, macc = metric.compute_pixel_acc()
-                    f1, mf1 = metric.compute_f1()
-                    logger.info(f"miou:{miou}, macc:{macc}, mf1:{mf1}")
-                    logger.info(f"ious:{ious}")
+
+                    score, class_iou = metric.get_scores()
+                    for k, v in score.items():
+                        print('{}: {}'.format(k, round(v * 100, 2)) + '\n')
+                        
+                    # for other_metric in all_metrics[1:]:
+                    #     metric.update_hist(other_metric.hist)
+                    # ious, miou = metric.compute_iou()
+                    # acc, macc = metric.compute_pixel_acc()
+                    # f1, mf1 = metric.compute_f1()
+                    # logger.info(f"miou:{miou}, macc:{macc}, mf1:{mf1}")
+                    # logger.info(f"ious:{ious}")
+
         elif not engine.distributed:
             with torch.no_grad():
                 model.eval()
-                device = torch.device("cuda")
+                # device = torch.device("cuda")
                 if args.mst:
                     metric = evaluate_msf(
                         model,
-                        val_loader,
+                        test_loader,
                         config,
-                        device,
+                        args.device,
                         [0.5, 0.75, 1.0, 1.25, 1.5],
                         True,
                         engine,
@@ -256,15 +279,20 @@ with Engine(custom_parser=parser) as engine:
                 else:
                     metric = evaluate(
                         model,
-                        val_loader,
+                        test_loader,
                         config,
-                        device,
+                        args.device,
                         engine,
                         sliding=args.sliding,
                     )
-                ious, miou = metric.compute_iou()
-                acc, macc = metric.compute_pixel_acc()
-                f1, mf1 = metric.compute_f1()
-                logger.info(f"miou:{miou}, macc:{macc}, mf1:{mf1}")
-                logger.info(f"ious:{ious}")
+
+                score, class_iou = metric.get_scores()
+                for k, v in score.items():
+                    print('{}: {}'.format(k, round(v * 100, 2)) + '\n')
+
+                # ious, miou = metric.compute_iou()
+                # acc, macc = metric.compute_pixel_acc()
+                # f1, mf1 = metric.compute_f1()
+                # logger.info(f"miou:{miou}, macc:{macc}, mf1:{mf1}")
+                # logger.info(f"ious:{ious}")
     logger.info("end testing")

@@ -27,17 +27,17 @@ C.x_root_folder = osp.join(C.dataset_path, "DSM256")
 C.x_format = ".tif"
 C.x_is_single_channel = True
 C.train_source = osp.join(C.dataset_path, "train.txt")
-# C.eval_source = osp.join(C.dataset_path, "val.txt")
-C.eval_source = osp.join(C.dataset_path, "test.txt")
+C.eval_source = osp.join(C.dataset_path, "val.txt")
+C.test_source = osp.join(C.dataset_path, "test.txt")
 C.is_test = True
 C.num_train_imgs = 3825
 C.num_eval_imgs = 1350
-# C.num_eval_imgs = 3150
+C.num_test_imgs = 3150
 C.num_classes = 6
 C.class_names = ["Imp.Surf.", "Tree", "Low Veg.", "Building",  "Car", "Clutter"]
 
 """Image Config"""
-C.background = 255
+C.background = 5
 C.image_height = 512
 C.image_width = 512
 C.norm_mean = np.array([0.349, 0.371, 0.347])
@@ -62,7 +62,6 @@ C.num_workers = 2
 C.train_scale_array = [0.5, 0.75, 1, 1.25, 1.5, 1.75]
 C.warm_up_epoch = 10
 C.channels = [96, 192, 288, 576]
-
 
 C.fix_bias = True
 C.bn_eps = 1e-3

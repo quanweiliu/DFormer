@@ -1,24 +1,17 @@
 import argparse
-import importlib
-import os
-import random
-import sys
 import time
 from importlib import import_module
 from thop import profile, clever_format
 
-import numpy as np
 import torch
-import torch.backends.cudnn as cudnn
 import torch.distributed as dist
 import torch.nn as nn
 from tensorboardX import SummaryWriter
 from torch.nn.parallel import DistributedDataParallel
-from torch.utils.data import DataLoader
 from tqdm import tqdm
 
 from models.builder import EncoderDecoder as segmodel
-from utils.dataloader.dataloader import ValPre, get_train_loader, get_val_loader
+from utils.dataloader.dataloader import get_val_loader
 # from utils.dataloader.RGBXDataset import RGBXDataset
 from utils.dataloader.TIFDataset import RGBXDataset
 from utils.engine.engine import Engine
@@ -28,7 +21,7 @@ from utils.lr_policy import WarmUpPolyLR
 from utils.metric import compute_score, hist_info
 from utils.pyt_utils import all_reduce_tensor, ensure_dir, link_file, load_model, parse_devices
 from utils.val_mm import evaluate, evaluate_msf
-from utils.visualize import print_iou, show_img
+# from utils.visualize import print_iou, show_img
 
 # from eval import evaluate_mid
 
@@ -38,19 +31,23 @@ from utils.visualize import print_iou, show_img
 # torch.cuda.manual_seed_all(SEED)
 # torch.backends.cudnn.deterministic=False
 # torch.backends.cudnn.benchmark = False
-
+torch.backends.cudnn.benchmark = True
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--config", help="train config file path")
 parser.add_argument("--gpus", help="used gpu number")
-# parser.add_argument('-d', '--devices', default='0,1', type=str)
 parser.add_argument("-v", "--verbose", default=False, action="store_true")
 parser.add_argument("--epochs", default=0)
 parser.add_argument("--show_image", "-s", default=False, action="store_true")
-parser.add_argument("--save_path", default=None)
 parser.add_argument("--checkpoint_dir")
 parser.add_argument("--continue_fpath")
-# parser.add_argument('--save_path', '-p', default=None)
+parser.add_argument("--compile", default=False, action=argparse.BooleanOptionalAction)
+parser.add_argument("--compile_mode", default="default")
+parser.add_argument("--mst", default=True, action=argparse.BooleanOptionalAction)
+# parser.add_argument('-d', '--devices', default='0,1', type=str)
+parser.add_argument("--device", default="cuda" if torch.cuda.is_available() else 'cpu', 
+                    type=str, help="device to use for training / testing")
+parser.add_argument("--save_path", default=None)
 logger = get_logger()
 
 # os.environ['MASTER_PORT'] = '169710'
@@ -61,9 +58,22 @@ with Engine(custom_parser=parser) as engine:
     config.pad = False  # Do not pad when inference
     if "x_modal" not in config:
         config["x_modal"] = "d"
-    cudnn.benchmark = True
-    val_loader, val_sampler = get_val_loader(engine, RGBXDataset, config, int(args.gpus))
-    print(len(val_loader))
+
+    if config.dataset_name != "SUNRGBD":
+        val_batch_size = int(config.batch_size)
+    elif not args.pad_SUNRGBD:
+        val_batch_size = int(args.gpus)
+    else:
+        val_batch_size = 8 * int(args.gpus)
+
+    val_loader, val_sampler = get_val_loader(
+                                            engine, 
+                                            RGBXDataset, 
+                                            config, 
+                                            val_batch_size=val_batch_size
+                                        )
+    # print(len(val_loader))
+    logger.info(f"val dataset len:{len(val_loader) * int(args.gpus)}")
 
     if (engine.distributed and (engine.local_rank == 0)) or (not engine.distributed):
         tb_dir = config.tb_dir + "/{}".format(time.strftime("%b%d_%d-%H-%M", time.localtime()))
@@ -71,17 +81,31 @@ with Engine(custom_parser=parser) as engine:
         tb = SummaryWriter(log_dir=tb_dir)
         engine.link_tb(tb_dir, generate_tb_dir)
 
+    logger.info("args parsed:")
+    for k in args.__dict__:
+        logger.info(k + ": " + str(args.__dict__[k]))
+
+    criterion = nn.CrossEntropyLoss(reduction="mean", ignore_index=config.background)
     if engine.distributed:
         BatchNorm2d = nn.SyncBatchNorm
+        logger.info("using syncbn")
     else:
         BatchNorm2d = nn.BatchNorm2d
+        logger.info("using regular bn")
 
-    model = segmodel(cfg=config, norm_layer=BatchNorm2d)
-    weight = torch.load(args.continue_fpath)["model"]
-    # weight = torch.load(args.continue_fpath)["state_dict"]
+    model = segmodel(cfg=config, 
+                     criterion=criterion,
+                     norm_layer=BatchNorm2d,
+                     syncbn=engine.distributed,
+                    )
+    weight = torch.load(args.continue_fpath, map_location=torch.device("cpu"))
+    if "model" in weight:
+        weight = weight["model"]
+    elif "state_dict" in weight:
+        weight = weight["state_dict"]
 
-    print("load model from {}".format(args.continue_fpath))
-    model.load_state_dict(weight, strict=False)
+    logger.info(f"load model from {args.continue_fpath}")
+    print(model.load_state_dict(weight, strict=False))
 
 
     ################################# FLOPs and Params ###################################################
@@ -107,61 +131,44 @@ with Engine(custom_parser=parser) as engine:
                 find_unused_parameters=True,
             )
     else:
-        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        model.to(device)
+        # device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        model.to(args.device)
+
+    if args.compile:
+        model = torch.compile(model, backend="inductor", mode=args.compile_mode)
 
     engine.register_state(dataloader=val_loader, model=model)
 
     logger.info("begin testing:")
-    best_miou = 0.0
-    data_setting = {
-        "rgb_root": config.rgb_root_folder,
-        "rgb_format": config.rgb_format,
-        "gt_root": config.gt_root_folder,
-        "gt_format": config.gt_format,
-        "transform_gt": config.gt_transform,
-        "x_root": config.x_root_folder,
-        "x_format": config.x_format,
-        "x_single_channel": config.x_is_single_channel,
-        "class_names": config.class_names,
-        "train_source": config.train_source,
-        "eval_source": config.eval_source,
-        "class_names": config.class_names,
-    }
-    # val_pre = ValPre()
-    # val_dataset = RGBXDataset(data_setting, 'val', val_pre)
-    # test_loader, test_sampler = get_test_loader(engine, RGBXDataset,config)
-    all_dev = [0]
 
-    # segmentor = SegEvaluator(val_dataset, config.num_classes, config.norm_mean,
-    #                                 config.norm_std, None,
-    #                                 config.eval_scale_array, config.eval_flip,
-    #                                 all_dev, config,args.verbose, args.save_path,args.show_image)
-
+    torch.cuda.empty_cache()
     if engine.distributed:
         print("multi GPU test")
         with torch.no_grad():
             model.eval()
-            device = torch.device("cuda")
-            all_metrics = evaluate(
-                model,
-                val_loader,
-                config,
-                device,
-                engine,
-                save_dir=None,
-            )
+            if args.mst:
 
-            # 测试时增强
-            # all_metrics = evaluate_msf(
-            #     model,
-            #     val_loader,
-            #     config,
-            #     device,
-            #     [0.5, 0.75, 1.0, 1.25, 1.5],
-            #     True,
-            #     engine,
-            # )
+                # 测试时增强
+                all_metrics = evaluate_msf(
+                    model,
+                    val_loader,
+                    config,
+                    args.device,
+                    [0.5, 0.75, 1.0, 1.25, 1.5],
+                    True,
+                    engine,
+                )
+
+            else:
+                all_metrics = evaluate(
+                    model,
+                    val_loader,
+                    config,
+                    args.device,
+                    engine,
+                    save_dir=None,
+                )
+
             if engine.local_rank == 0:
                 metric = all_metrics[0]
                 
@@ -179,29 +186,30 @@ with Engine(custom_parser=parser) as engine:
                 # print(macc, "---------")
                 # print(mf1, "---------")
                 # print(miou, "---------")
+
     else:
         with torch.no_grad():
             model.eval()
-            device = torch.device("cuda")
-            # metric=evaluate(model, val_loader,config, device, engine)
-            # print('acc, macc, f1, mf1, ious, miou',acc, macc, f1, mf1, ious, miou)
-            metric = evaluate(
-                model,
-                val_loader,
-                config,
-                device,
-                engine,
-                save_dir=args.save_path,
-            )
-            # metric = evaluate_msf(
-            #     model,
-            #     val_loader,
-            #     config,
-            #     device,
-            #     [0.5, 0.75, 1.0, 1.25, 1.5],
-            #     True,
-            #     engine,
-            # )
+            if args.mst:
+                metric = evaluate_msf(
+                    model,
+                    val_loader,
+                    config,
+                    args.device,
+                    [0.5, 0.75, 1.0, 1.25, 1.5],
+                    True,
+                    engine,
+                )
+
+            else:
+                metric = evaluate(
+                    model,
+                    val_loader,
+                    config,
+                    args.device,
+                    engine,
+                    save_dir=args.save_path,
+                )
 
             score, class_iou = metric.get_scores()
             for k, v in score.items():

@@ -14,7 +14,7 @@ from torch.nn.parallel import DistributedDataParallel
 from val_mm import evaluate, evaluate_msf
 
 from models.builder import EncoderDecoder as segmodel
-from utils.dataloader.dataloader import get_train_loader, get_val_loader
+from utils.dataloader.dataloader import get_train_loader, get_val_loader, get_test_loader
 # from utils.dataloader.RGBXDataset import RGBXDataset
 from utils.dataloader.TIFDataset import RGBXDataset
 from utils.engine.engine import Engine
@@ -24,7 +24,6 @@ from utils.lr_policy import WarmUpPolyLR
 from utils.pyt_utils import all_reduce_tensor
 
 # from eval import evaluate_mid
-
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--config", help="train config file path")

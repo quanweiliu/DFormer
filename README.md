@@ -4,8 +4,7 @@ In this repository, I apply the DFormer in my study area (Remote sensing). I fou
 How to change the dataset, 1\) compare the local_configs/template/DFormer_Large.py and ISPRS_Potsdam_L you will know how to configure. And  2\) compare utils/dataloader/RGBXDataset and utils/dataloader/TIFDataset you will know how to use your own datasets.
 
 
-The difference of this version compared to orgianl version is estimation metric. The concret details refer to 2.File description Metric.
-
+The main difference of this version compared to orgianl version is estimation metric. I also introduce two more remote sensing datasets and clean up the code. The concret details refer to 2.File description Metric.
 
 
 ## 1.Get Start
@@ -13,10 +12,8 @@ Install: Refer to [DFormer](https://github.com/quanweiliu/DFormer)
 
 ## 2.File description
 Train： bash train.sh
-
-Test: bash eval.sh
-
-Visulization: bash infer.sh
+Test: bash test.sh
+infer: bash infer.sh   repetition abolished
 
 Datasets:
 - ISPRS_Vaihingen_S
@@ -37,21 +34,22 @@ Metric：
     - 综上，都采用第二种更加通用的评价指标。
 
 RGBXDataset: load RGBX datasets
+
 TIFDataset: load TIF datasets
 
 
 ## 3.RUN
 
-### test RGBD datasets:
+### Test RGBD datasets:
 1. 从 [DFormer](https://github.com/quanweiliu/DFormer) 下载权重文件，并放到
     - checkpoints
 
-2. 配置 infer.sh 文件
+2. 配置 test.sh 文件
     - 支持单机单卡或者单机多卡，但是默认为单机多卡，只需要确定 GPU 数量即可
     - 以 DFormerv2_B 为例子，选择 --config=local_configs.NYUDepthv2.DFormerv2_B
     - 配置权重 --continue_fpath=/home/icclab/Documents/lqw/Multimodal_Segmentation/DFormer/checkpoints/DFormerv2_Base_NYU.pth
 
-3. 在 utils/infer.py 
+3. 在 utils/test.py 
     - 打开 from utils.dataloader.RGBXDataset import RGBXDataset
     - 打开 torch.load(args.continue_fpath)["state_dict"]
 
@@ -62,9 +60,10 @@ TIFDataset: load TIF datasets
 
 5. 得到结果
     - 结果只有打印，没有保存
+    - 想要保存可视化的结果打开 evaluate 函数的 save_dir
 
 
-### train RS datasets:
+### Train RS datasets:
 1. 配置 train.sh 文件
     - 支持单机单卡或者单机多卡，但是默认为单机多卡，只需要确定 GPU 数量即可
     - 选择 --config=local_configs.ISPRS_Vaihingen_S
@@ -86,18 +85,18 @@ TIFDataset: load TIF datasets
         - **background 5**
     - 配置权重 --continue_fpath=/home/icclab/Documents/lqw/Multimodal_Segmentation/DFormer/results/Vaihingen_DFormerv2_S_20251023-140912/epoch-97_miou_61.81.pth
 
-2. 在 utils/infer.py 
+2. 在 utils/test.py 
     - 打开 from utils.dataloader.TIFDataset import RGBXDataset
     - 打开 torch.load(args.continue_fpath)["model"]
 
 3. 运行文件
     - cd /home/icclab/Documents/lqw/Multimodal_Segmentation/DFormer
     - conda activate dformer
-    - bash infer.sh
+    - bash test.sh
 
 4. 得到结果
     - 结果只有打印，没有保存
-
+    - 想要保存可视化的结果打开 evaluate 函数的 save_dir
 
 
 ## 4.Thanks

@@ -50,17 +50,22 @@ TIFDataset: load TIF datasets
     - 配置权重 --continue_fpath=/home/icclab/Documents/lqw/Multimodal_Segmentation/DFormer/checkpoints/DFormerv2_Base_NYU.pth
 
 3. 在 utils/test.py 
-    - 打开 from utils.dataloader.RGBXDataset import RGBXDataset
-    - 打开 torch.load(args.continue_fpath)["state_dict"]
+    - 打开 from utils.dataloader.RGBXDataset import RGBXDataset 应为数据类型不同
 
-4. 运行文件
+4. 在 utils/val_mm.py 
+    - 打开 metrics = Metrics(n_classes, config.background, device) 因为不同数据集的背景类别不同
+
+5. 运行文件
     - cd /home/icclab/Documents/lqw/Multimodal_Segmentation/DFormer
     - conda activate dformer
     - bash infer.sh
 
-5. 得到结果
+6. 得到结果
     - 结果只有打印，没有保存
     - 想要保存可视化的结果打开 evaluate 函数的 save_dir
+
+
+
 
 
 ### Train RS datasets:
@@ -69,32 +74,37 @@ TIFDataset: load TIF datasets
     - 选择 --config=local_configs.ISPRS_Vaihingen_S
     - 配置 ISPRS_Vaihingen_S, 
         - 选择 train 和 val 数据集和 train 和 val 样本数量
-        - **background 255**, 只有我这个需要改，对于RGB-X数据集，他的背景就是 255 不需要改。
+        - background 255, 这是填充的背景类别。
 
 2. 在 utils/train.py
     - 打开 from utils.dataloader.TIFDataset import RGBXDataset
 
-
+3. 在 utils/val_mm.py 
+    - 打开 metrics = Metrics(n_classes, config.ignore_label, device) 因为不同数据集的背景类别不同
 
 ### Test RS datasets:
 1. 配置 infer.sh 文件
     - 支持单机单卡或者单机多卡，但是默认为单机多卡，只需要确定 GPU 数量即可
     - 以 ISPRS_Vaihingen_S 为例子，选择 --config=local_configs.ISPRS_Vaihingen_S
+
+2. 配置数据文件
     - 配置 ISPRS_Vaihingen_S, 
         - 选择 test 数据集和 test 样本数量
-        - **background 5**
+        - **ignore_label 5**， 这是图像自带的背景类别。我们的策略是在训练的时候算上这个类别，但是在测试的时候不要这个类别。这是遥感社区在这个数据集上的通用做法。
     - 配置权重 --continue_fpath=/home/icclab/Documents/lqw/Multimodal_Segmentation/DFormer/results/Vaihingen_DFormerv2_S_20251023-140912/epoch-97_miou_61.81.pth
 
 2. 在 utils/test.py 
     - 打开 from utils.dataloader.TIFDataset import RGBXDataset
-    - 打开 torch.load(args.continue_fpath)["model"]
 
-3. 运行文件
+3. 在 utils/val_mm.py 
+    - 打开 metrics = Metrics(n_classes, config.ignore_label, device) 因为不同数据集的背景类别不同
+
+4. 运行文件
     - cd /home/icclab/Documents/lqw/Multimodal_Segmentation/DFormer
     - conda activate dformer
     - bash test.sh
 
-4. 得到结果
+5. 得到结果
     - 结果只有打印，没有保存
     - 想要保存可视化的结果打开 evaluate 函数的 save_dir
 

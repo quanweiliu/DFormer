@@ -90,7 +90,8 @@ def evaluate(
     print("Evaluating...")
     model.eval()
     n_classes = config.num_classes
-    metrics = Metrics(n_classes, config.background, device)
+    metrics = Metrics(n_classes, config.ignore_label, device)
+    # metrics = Metrics(n_classes, config.background, device)
 
     for idx, minibatch in enumerate(dataloader):
         if ((idx + 1) % int(len(dataloader) * 0.5) == 0 or idx == 0) and (

@@ -37,7 +37,8 @@ C.num_classes = 6
 C.class_names = ["Imp.Surf.", "Tree", "Low Veg.", "Building",  "Car", "Clutter"]
 
 """Image Config"""
-C.background = 5
+C.background = 255
+C.ignore_label = 5
 C.image_height = 256
 C.image_width = 256
 C.norm_mean = np.array([0.4731, 0.3206, 0.3182])

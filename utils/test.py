@@ -17,7 +17,6 @@ from utils.dataloader.TIFDataset import RGBXDataset
 from utils.engine.engine import Engine
 from utils.engine.logger import get_logger
 
-# from eval import evaluate_mid
 torch.backends.cudnn.enabled = True
 torch.backends.cudnn.benchmark = True
 
@@ -36,7 +35,6 @@ parser.add_argument("--syncbn", default=True, action=argparse.BooleanOptionalAct
 parser.add_argument("--mst", default=True, action=argparse.BooleanOptionalAction)
 parser.add_argument("--amp", default=True, action=argparse.BooleanOptionalAction)
 parser.add_argument("--pad_SUNRGBD", default=False, action=argparse.BooleanOptionalAction)
-# parser.add_argument('-d', '--devices', default='0,1', type=str)
 parser.add_argument("--device", default="cuda" if torch.cuda.is_available() else 'cpu', 
                     type=str, help="device to use for training / testing")
 parser.add_argument("--save_path", default=None)

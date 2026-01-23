@@ -1,57 +1,12 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from functools import partial
 
 from utils.init_func import init_weight
 from utils.load_utils import load_pretrain
-from functools import partial
-
 from utils.engine.logger import get_logger
 import warnings
-
-# from mmcv.cnn import MODELS as MMCV_MODELS
-# from mmcv.cnn.bricks.registry import ATTENTION as MMCV_ATTENTION
-# from mmcv.utils import Registry
-
-# MODELS = Registry('models', parent=MMCV_MODELS)
-# ATTENTION = Registry('attention', parent=MMCV_ATTENTION)
-
-# BACKBONES = MODELS
-# NECKS = MODELS
-# HEADS = MODELS
-# LOSSES = MODELS
-# SEGMENTORS = MODELS
-
-
-# def build_backbone(cfg):
-#     """Build backbone."""
-#     return BACKBONES.build(cfg)
-
-
-# def build_neck(cfg):
-#     """Build neck."""
-#     return NECKS.build(cfg)
-
-
-# def build_head(cfg):
-#     """Build head."""
-#     return HEADS.build(cfg)
-
-
-# def build_loss(cfg):
-#     """Build loss."""
-#     return LOSSES.build(cfg)
-
-
-# def build_segmentor(cfg, train_cfg=None, test_cfg=None):
-#     """Build segmentor."""
-#     if train_cfg is not None or test_cfg is not None:
-#         warnings.warn("train_cfg and test_cfg is deprecated, please specify them in model", UserWarning)
-#     assert cfg.get("train_cfg") is None or train_cfg is None, (
-#         "train_cfg specified in both outer field and model field "
-#     )
-#     assert cfg.get("test_cfg") is None or test_cfg is None, "test_cfg specified in both outer field and model field "
-#     return SEGMENTORS.build(cfg, default_args=dict(train_cfg=train_cfg, test_cfg=test_cfg))
 
 
 logger = get_logger()
@@ -65,6 +20,7 @@ class EncoderDecoder(nn.Module):
         norm_layer=nn.BatchNorm2d,
         syncbn=False,
     ):
+        
         super(EncoderDecoder, self).__init__()
         self.norm_layer = norm_layer
         self.cfg = cfg
@@ -248,12 +204,19 @@ class EncoderDecoder(nn.Module):
         """Encode images with backbone and decode into a semantic segmentation
         map of the same size as input."""
         orisize = rgb.shape
-        # print('builder',rgb.shape,modal_x.shape)
+        # print('builder', rgb.shape, modal_x.shape)
         x = self.backbone(rgb, modal_x)
-        if len(x) == 2:  # if output is (rgb,depth) only use rgb
+        print("output shape", [i.shape for i in x], type(x))
+        # tuple torch.Size([32, 64, 64, 64])
+        # tuple torch.Size([32, 128, 32, 32])
+        # tuple torch.Size([32, 256, 16, 16])
+        # tuple torch.Size([32, 512, 8, 8])
+
+        if len(x) == 2:  # if output is (rgb, depth) only use rgb
             x = x[0]
         out = self.decode_head.forward(x)
         out = F.interpolate(out, size=orisize[-2:], mode="bilinear", align_corners=False)
+        
         if self.aux_head:
             aux_fm = self.aux_head(x[0][self.aux_index])
             aux_fm = F.interpolate(aux_fm, size=orisize[2:], mode="bilinear", align_corners=False)

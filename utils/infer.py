@@ -23,7 +23,6 @@ from utils.pyt_utils import all_reduce_tensor, ensure_dir, link_file, load_model
 from utils.val_mm import evaluate, evaluate_msf
 # from utils.visualize import print_iou, show_img
 
-# from eval import evaluate_mid
 
 # SEED=1
 # # np.random.seed(SEED)

@@ -8,13 +8,14 @@ from importlib import import_module
 
 import numpy as np
 import torch
+import torch._dynamo
 import torch.nn as nn
 from tensorboardX import SummaryWriter
 from torch.nn.parallel import DistributedDataParallel
 from val_mm import evaluate, evaluate_msf
 
 from models.builder import EncoderDecoder as segmodel
-from utils.dataloader.dataloader import get_train_loader, get_val_loader, get_test_loader
+from utils.dataloader.dataloader import get_train_loader, get_val_loader
 # from utils.dataloader.RGBXDataset import RGBXDataset
 from utils.dataloader.TIFDataset import RGBXDataset
 from utils.engine.engine import Engine
@@ -23,12 +24,12 @@ from utils.init_func import configure_optimizers, group_weight
 from utils.lr_policy import WarmUpPolyLR
 from utils.pyt_utils import all_reduce_tensor
 
-# from eval import evaluate_mid
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--config", help="train config file path")
 parser.add_argument("--gpus", default=2, type=int, help="used gpu number")
-# parser.add_argument('-d', '--devices', default='0,1', type=str)
+parser.add_argument("--device", default="cuda" if torch.cuda.is_available() else 'cpu', 
+                    type=str, help="device to use for training / testing")
 parser.add_argument("-v", "--verbose", default=False, action="store_true")
 parser.add_argument("--epochs", default=0)
 parser.add_argument("--show_image", "-s", default=False, action="store_true")
@@ -49,8 +50,6 @@ parser.add_argument("--local-rank", default=0)
 
 # os.environ['MASTER_PORT'] = '169710'
 torch.set_float32_matmul_precision("high")
-import torch._dynamo
-
 torch._dynamo.config.suppress_errors = True
 # torch._dynamo.config.automatic_dynamic_shapes = False
 

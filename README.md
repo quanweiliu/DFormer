@@ -7,6 +7,13 @@ How to change the dataset, 1\) compare the local_configs/template/DFormer_Large.
 The main difference of this version compared to orgianl version is estimation metric. I also introduce two more remote sensing datasets and clean up the code. The concret details refer to 2.File description Metric.
 
 
+<!-- 
+目前的版本已经稳定，下一步要做的是将 mask2former 加到这个模块的头上。
+好像不是很难加，输出的格式是符合 maskformer2 的输入要求的。需要改的有
+数据的输入格式
+模型
+criterion -->
+
 ## 1.Get Start
 Install: Refer to [DFormer](https://github.com/quanweiliu/DFormer)
 
